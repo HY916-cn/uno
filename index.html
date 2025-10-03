@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNO Online</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="icon.png">
+</head>
+<body>
+    <!-- 语言切换和管理员登录 -->
+    <div class="top-bar">
+        <div class="language-switch">
+            <button id="lang-zh" class="lang-btn active">中文</button>
+            <button id="lang-en" class="lang-btn">English</button>
+        </div>
+        <div class="admin-section">
+            <button id="admin-login-btn" class="admin-btn" data-zh="管理员登录" data-en="Admin Login">管理员登录</button>
+            <button id="admin-logout-btn" class="admin-btn hidden" data-zh="退出管理" data-en="Logout">退出管理</button>
+            <span id="admin-status" class="admin-status hidden" data-zh="管理员模式" data-en="Admin Mode">管理员模式</span>
+        </div>
+    </div>
+
+    <!-- 主页面 -->
+    <div id="home-page" class="page active">
+        <div class="container">
+            <!-- UNO牌动画图标 -->
+            <div class="uno-logo-container">
+                <!-- 红色牌 -->
+                <div class="uno-card card-red">
+                    <div class="card-content">U</div>
+                </div>
+                
+                <!-- 蓝色牌 -->
+                <div class="uno-card card-blue">
+                    <div class="card-content">N</div>
+                </div>
+                
+                <!-- 绿色牌 -->
+                <div class="uno-card card-green">
+                    <div class="card-content">O</div>
+                </div>
+                
+                <!-- 黄色牌 -->
+                <div class="uno-card card-yellow">
+                    <div class="card-content">!</div>
+                </div>
+            </div>
+            
+            <h1 class="title" data-zh="UNO Online" data-en="UNO Online">UNO Online</h1>
+            <div class="main-menu">
+                <button id="create-room-btn" class="menu-btn" data-zh="创建房间" data-en="Create Room">
+                    <span class="btn-icon">🏠</span>
+                    <span class="btn-text">创建房间</span>
+                </button>
+                <button id="join-room-btn" class="menu-btn" data-zh="加入房间" data-en="Join Room">
+                    <span class="btn-icon">🚪</span>
+                    <span class="btn-text">加入房间</span>
+                </button>
+                <button id="rules-btn" class="menu-btn" data-zh="游戏规则" data-en="Game Rules">
+                    <span class="btn-icon">📖</span>
+                    <span class="btn-text">游戏规则</span>
+                </button>
+                <button id="admin-panel-btn" class="menu-btn hidden" data-zh="管理面板" data-en="Admin Panel">
+                    <span class="btn-icon">⚙️</span>
+                    <span class="btn-text">管理面板</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建房间页面 -->
+    <div id="create-room-page" class="page">
+        <div class="container">
+            <h2 data-zh="创建房间" data-en="Create Room">创建房间</h2>
+            <div class="form-group">
+                <label data-zh="房间人数:" data-en="Players:">房间人数:</label>
+                <div class="number-input-container">
+                    <button type="button" class="number-btn decrease" id="decrease-players">-</button>
+                    <input type="number" id="player-count" value="4" min="2" max="10" readonly>
+                    <button type="button" class="number-btn increase" id="increase-players">+</button>
+                    <span class="number-label" data-zh="人" data-en="players">人</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label data-zh="您的昵称:" data-en="Your Nickname:">您的昵称:</label>
+                <input type="text" id="host-nickname" maxlength="20" placeholder="请输入昵称">
+            </div>
+            <div class="button-group">
+                <button id="confirm-create-btn" class="primary-btn" data-zh="创建房间" data-en="Create Room">创建房间</button>
+                <button id="back-from-create-btn" class="secondary-btn" data-zh="返回" data-en="Back">返回</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加入房间页面 -->
+    <div id="join-room-page" class="page">
+        <div class="container">
+            <h2 data-zh="加入房间" data-en="Join Room">加入房间</h2>
+            <div class="form-group">
+                <label data-zh="房间码:" data-en="Room Code:">房间码:</label>
+                <input type="text" id="room-code-input" placeholder="请输入房间码" maxlength="6">
+            </div>
+            <div class="form-group">
+                <label data-zh="您的昵称:" data-en="Your Nickname:">您的昵称:</label>
+                <input type="text" id="join-nickname" maxlength="20" placeholder="请输入昵称">
+            </div>
+            <div class="button-group">
+                <button id="confirm-join-btn" class="primary-btn" data-zh="加入房间" data-en="Join Room">加入房间</button>
+                <button id="back-from-join-btn" class="secondary-btn" data-zh="返回" data-en="Back">返回</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 房间等待页面 -->
+    <div id="room-page" class="page">
+        <div class="container">
+            <div class="room-header">
+                <h2 id="room-title" data-zh="房间" data-en="Room">房间</h2>
+                <div class="room-code">
+                    <div class="room-code-text">
+                        <span data-zh="房间码:" data-en="Room Code:">房间码:</span>
+                        <span id="current-room-code"></span>
+                    </div>
+                    <div class="room-code-actions">
+                        <button id="copy-room-code-btn" class="copy-btn" data-zh-title="复制房间码" data-en-title="Copy room code" data-zh="复制" data-en="Copy">
+                            复制
+                        </button>
+                        <button id="share-room-btn" class="share-btn" data-zh-title="分享房间链接" data-en-title="Share room link" data-zh="分享" data-en="Share">
+                            分享
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="players-list">
+                <h3 data-zh="玩家列表" data-en="Players">玩家列表</h3>
+                <div id="players-container"></div>
+            </div>
+            <div class="room-controls">
+                <button id="ready-btn" class="primary-btn" data-zh="准备" data-en="Ready">准备</button>
+                <button id="start-game-btn" class="primary-btn hidden" data-zh="开始游戏" data-en="Start Game">开始游戏</button>
+                <button id="leave-room-btn" class="secondary-btn" data-zh="离开房间" data-en="Leave Room">离开房间</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏页面 -->
+    <div id="game-page" class="page">
+        <div class="game-container">
+            <!-- 游戏信息栏 -->
+            <div class="game-info">
+                <div class="current-player">
+                    <span data-zh="当前玩家:" data-en="Current Player:">当前玩家:</span>
+                    <span id="current-player-name"></span>
+                </div>
+                <div class="game-direction">
+                    <span data-zh="方向:" data-en="Direction:">方向:</span>
+                    <span id="game-direction-indicator">→</span>
+                </div>
+                <div class="cards-left">
+                    <span data-zh="牌堆剩余:" data-en="Cards Left:">牌堆剩余:</span>
+                    <span id="deck-count">108</span>
+                </div>
+                <!-- 当前出牌玩家提示 -->
+                <div id="current-turn-indicator" class="current-turn-indicator">
+                    <span id="current-turn-text" data-zh="现在轮到你出牌" data-en="Now it's your turn">现在轮到你出牌</span>
+                </div>
+                <!-- 冠军抢夺战指示器 -->
+                <div id="champion-battle-indicator" class="champion-battle-indicator hidden">
+                    冠军抢夺战进行中
+                </div>
+            </div>
+
+            <!-- 其他玩家区域 -->
+            <div class="other-players" id="other-players"></div>
+
+
+
+            <!-- 游戏中心区域 -->
+            <div class="game-center">
+                <div class="deck-area">
+                    <div class="draw-pile" id="draw-pile">
+                        <div class="card card-back"></div>
+                    </div>
+                    <div class="discard-pile" id="discard-pile"></div>
+                </div>
+                <div class="game-actions">
+                    <button id="draw-card-btn" class="action-btn" data-zh="抽牌" data-en="Draw Card">抽牌</button>
+                    <button id="skip-turn-btn" class="action-btn skip-btn hidden" data-zh="跳过回合" data-en="Skip Turn">跳过回合</button>
+                    <button id="uno-btn" class="action-btn uno-btn" data-zh="UNO!" data-en="UNO!">UNO!</button>
+                    <button id="urge-btn" class="action-btn urge-btn hidden" data-zh="催" data-en="Urge">催</button>
+                </div>
+            </div>
+
+            <!-- 当前玩家手牌 -->
+            <div class="player-hand">
+                <h3 data-zh="您的手牌" data-en="Your Cards">您的手牌</h3>
+                <div class="hand-cards" id="hand-cards"></div>
+            </div>
+
+            <!-- 管理员作弊面板 -->
+            <div id="admin-cheat-panel" class="cheat-panel hidden">
+                <h4 data-zh="管理员作弊面板" data-en="Admin Cheat Panel">管理员作弊面板</h4>
+                <div class="cheat-controls">
+                    <button id="view-all-hands" class="cheat-btn" data-zh="查看所有手牌" data-en="View All Hands">查看所有手牌</button>
+                    <button id="draw-specific-card" class="cheat-btn" data-zh="抽取指定牌" data-en="Draw Specific Card">抽取指定牌</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏结束页面 -->
+    <div id="game-end-page" class="page">
+        <div class="container">
+            <h2 data-zh="游戏结束" data-en="Game Over">游戏结束</h2>
+            <div id="game-results"></div>
+            <div class="button-group">
+                <button id="back-to-home-btn" class="secondary-btn" data-zh="返回首页" data-en="Back to Home">返回首页</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理员面板 -->
+    <div id="admin-panel-page" class="page">
+        <div class="container">
+            <h2 data-zh="管理员面板" data-en="Admin Panel">管理员面板</h2>
+            <div class="admin-content">
+                <h3 data-zh="正在进行的游戏" data-en="Active Games">正在进行的游戏</h3>
+                <div id="active-games-list"></div>
+            </div>
+            <button id="back-from-admin-btn" class="secondary-btn" data-zh="返回" data-en="Back">返回</button>
+        </div>
+    </div>
+
+    <!-- 规则页面 -->
+    <div id="rules-page" class="page">
+        <div class="container">
+            <h2 data-zh="游戏规则" data-en="Game Rules">游戏规则</h2>
+            <div class="rules-content" id="rules-content">
+                <!-- 规则内容将通过JavaScript动态加载 -->
+            </div>
+            <button id="back-from-rules-btn" class="secondary-btn" data-zh="返回" data-en="Back">返回</button>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- 加载动画 -->
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p data-zh="加载中..." data-en="Loading...">加载中...</p>
+    </div>
+
+    <!-- 通知系统 -->
+    <div id="notification" class="notification"></div>
+
+    <!-- 版权信息 -->
+    <footer class="footer">
+        <p>2025 ©HaoyuHuang All rights reserved.</p>
+    </footer>
+
+    <!-- 脚本文件 -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
