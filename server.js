@@ -6,7 +6,30 @@ const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+// 限制 WS 单个消息最大 10KB，防止大 payload 攻击
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 10240 });
+
+// HTTP 安全头中间件 (等同于部分 Helmet 功能)
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
+
+// HTTP 简单内存限流 (防 CC/DDoS 刷新)
+const ipRequestCounts = new Map();
+setInterval(() => ipRequestCounts.clear(), 60000); // 每分钟清空一次
+app.use((req, res, next) => {
+    const ip = req.ip || req.socket.remoteAddress || '0.0.0.0';
+    const count = (ipRequestCounts.get(ip) || 0) + 1;
+    ipRequestCounts.set(ip, count);
+    if (count > 200) { // 限制单 IP 每分钟最多 200 次 HTTP 请求
+        return res.status(429).send('Too Many Requests');
+    }
+    next();
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -336,7 +359,7 @@ function checkAITurn(room) {
 
     if (room.aiTimer) clearTimeout(room.aiTimer);
 
-    const delay = 1000 + Math.random() * 1000; // 人机出牌变快，在1秒到2秒之间
+    const delay = 1000 + Math.random() * 1000; // AI出牌变快，在1秒到2秒之间
     room.aiTimer = setTimeout(() => {
         executeAITurn(room, currentPlayer);
     }, delay);
@@ -367,7 +390,7 @@ function executeAITurn(room, bot) {
             playCardLogic(room, bot, cardToPlay.id, colorToDeclare);
         } else {
             // Draw card
-            log(room.id, 'INFO', `人机(${bot.name})没有可出的牌，抽牌`);
+            log(room.id, 'INFO', `AI(${bot.name})没有可出的牌，抽牌`);
             const drawnCards = drawCards(room, 1);
             if (drawnCards.length > 0) {
                 bot.hand.push(...drawnCards);
@@ -378,7 +401,7 @@ function executeAITurn(room, bot) {
                 setTimeout(() => { executeAITurn(room, bot); }, 500);
             } else {
                 // Deck empty, skip
-                log(room.id, 'INFO', `人机(${bot.name})无牌可抽，跳过`);
+                log(room.id, 'INFO', `AI(${bot.name})无牌可抽，跳过`);
                 advanceTurn(room, 1);
             }
         }
@@ -392,7 +415,7 @@ function executeAITurn(room, bot) {
             }
             playCardLogic(room, bot, lastDrawn.id, colorToDeclare);
         } else {
-            log(room.id, 'INFO', `人机(${bot.name})抽牌后仍无牌可出，跳过`);
+            log(room.id, 'INFO', `AI(${bot.name})抽牌后仍无牌可出，跳过`);
             advanceTurn(room, 1);
         }
     }
@@ -572,10 +595,50 @@ function handleDisconnect(ws) {
     }
 }
 
-wss.on('connection', (ws) => {
+const MAX_WS_CONNECTIONS = 2000;
+
+// 定时清理僵尸连接
+const pingInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+            handleDisconnect(ws);
+            clients.delete(ws);
+            return ws.terminate();
+        }
+        ws.isAlive = false;
+        ws.ping();
+    });
+}, 30000);
+
+wss.on('close', () => {
+    clearInterval(pingInterval);
+});
+
+wss.on('connection', (ws, req) => {
+    if (wss.clients.size > MAX_WS_CONNECTIONS) {
+        ws.close(1013, '服务器连接数已满，请稍后再试');
+        return;
+    }
+
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
+    let messageCount = 0;
+    const rateLimitInterval = setInterval(() => { messageCount = 0; }, 1000);
+
     ws.on('message', (message) => {
+        // 限制每个连接每秒最多发送 40 条消息，防止恶意发包消耗服务器 CPU
+        messageCount++;
+        if (messageCount > 40) {
+            log('SYS', 'WARN', `连接被断开：消息发送频率过高 (${req.socket.remoteAddress})`);
+            ws.close(1008, '消息发送频率过高');
+            return;
+        }
+
         try {
             const data = JSON.parse(message);
+            if (!data || typeof data.type !== 'string') return; // Type safety for event type
+            
             const clientData = clients.get(ws) || {};
             if (clientData.id) {
                 updateClientActivity(ws); // reset AFK timer on any valid incoming message
@@ -603,13 +666,31 @@ wss.on('connection', (ws) => {
             }
 
             if (data.type === 'create_room') {
-                const playerName = data.name || '神秘玩家';
+                let playerName = (data.name || '神秘玩家').trim().substring(0, 15);
+                if (!playerName) playerName = '神秘玩家';
+                
+                let maxPlayers = parseInt(data.maxPlayers, 10);
+                let bots = parseInt(data.bots, 10);
+                
+                if (isNaN(maxPlayers) || maxPlayers < 2 || maxPlayers > 12) {
+                    sendError(ws, '房间总人数不合法 (2-12)');
+                    return;
+                }
+                if (isNaN(bots) || bots < 0 || bots > 11) {
+                    sendError(ws, 'AI数不合法 (0-11)');
+                    return;
+                }
+                if (bots >= maxPlayers) {
+                    sendError(ws, 'AI数不能大于等于房间总人数');
+                    return;
+                }
+
                 const roomId = generateRoomId();
                 const clientId = generateId();
                 const room = {
                     id: roomId,
-                    hidden: data.hidden,
-                    maxPlayers: data.maxPlayers,
+                    hidden: !!data.hidden,
+                    maxPlayers: maxPlayers,
                     state: 'lobby',
                     players: [{
                         id: clientId,
@@ -630,7 +711,7 @@ wss.on('connection', (ws) => {
                     aiTimer: null
                 };
 
-                for (let i = 0; i < data.bots; i++) {
+                for (let i = 0; i < bots; i++) {
                     room.players.push({
                         id: generateId(),
                         ws: null,
@@ -646,12 +727,20 @@ wss.on('connection', (ws) => {
                 rooms.set(roomId, room);
                 clients.set(ws, { id: clientId, roomId, name: playerName });
                 updateClientActivity(ws); // Start AFK tracking
-                log(roomId, 'INFO', `房间创建成功，房主: ${playerName}，总人数限制: ${data.maxPlayers}，AI数: ${data.bots}`);
+                log(roomId, 'INFO', `房间创建成功，房主: ${playerName}，总人数限制: ${maxPlayers}，AI数: ${bots}`);
                 broadcastRoom(roomId);
             }
             else if (data.type === 'join_room') {
-                const playerName = data.name || '神秘玩家';
-                const room = rooms.get(data.roomId);
+                let playerName = (data.name || '神秘玩家').trim().substring(0, 15);
+                if (!playerName) playerName = '神秘玩家';
+                const roomId = (data.roomId || '').trim();
+                
+                if (!roomId) {
+                    sendError(ws, '房间号为空');
+                    return;
+                }
+
+                const room = rooms.get(roomId);
                 if (!room) {
                     sendError(ws, '房间不存在');
                     return;
@@ -700,6 +789,7 @@ wss.on('connection', (ws) => {
                 handleDisconnect(ws);
             }
             else if (data.type === 'kick_player') {
+                if (typeof data.targetId !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room) return;
                 const player = room.players.find(p => p.id === clientData.id);
@@ -710,7 +800,7 @@ wss.on('connection', (ws) => {
                 const targetIdx = room.players.findIndex(p => p.id === data.targetId);
                 if (targetIdx !== -1) {
                     const target = room.players[targetIdx];
-                    log(room.id, 'INFO', `房主踢出了${target.isBot ? '人机' : '玩家'}(${target.name})`);
+                    log(room.id, 'INFO', `房主踢出了${target.isBot ? 'AI' : '玩家'}(${target.name})`);
                     if (!target.isBot && target.ws) {
                         sendError(target.ws, '你已被房主踢出房间');
                         target.ws.close();
@@ -726,7 +816,7 @@ wss.on('connection', (ws) => {
                 if (!room) return;
                 const player = room.players.find(p => p.id === clientData.id);
                 if (player) {
-                    player.ready = data.state;
+                    player.ready = !!data.state;
                     log(room.id, 'INFO', `玩家(${player.name})状态变为: ${player.ready ? '已准备' : '未准备'}`);
                     broadcastRoom(room.id);
                 }
@@ -790,12 +880,13 @@ wss.on('connection', (ws) => {
                 });
 
                 // 首发牌动画大概需要 7 * 200ms = 1400ms，外加 400ms 的飞行时间。总计约 1.8 秒。
-                // 我们增加 2 秒的延迟，让人机在首轮发牌动画结束后再出牌。
+                // 我们增加 2 秒的延迟，让AI在首轮发牌动画结束后再出牌。
                 setTimeout(() => {
                     checkAITurn(room);
                 }, 2000);
             }
             else if (data.type === 'play_card') {
+                if (typeof data.cardId !== 'string' || typeof data.declaredColor !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame') return;
                 const player = room.players[room.turnIndex];
@@ -803,13 +894,17 @@ wss.on('connection', (ws) => {
                     sendError(ws, '还没轮到你');
                     return;
                 }
-                playCardLogic(room, player, data.cardId, data.declaredColor, data.cheat);
+                playCardLogic(room, player, data.cardId, data.declaredColor, !!data.cheat);
             }
             else if (data.type === 'play_cheat_card') {
+                if (typeof data.cardId !== 'string' || typeof data.declaredColor !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame') return;
                 const player = room.players[room.turnIndex];
                 if (player.id !== clientData.id) return;
+                
+                const validColors = ['red', 'yellow', 'blue', 'green'];
+                if (!validColors.includes(data.declaredColor)) return;
                 
                 // Directly mutate the card into a +4 black card
                 const cardIndex = player.hand.findIndex(c => c.id === data.cardId);
@@ -880,6 +975,7 @@ wss.on('connection', (ws) => {
                 }
             }
             else if (data.type === 'qte_submit') {
+                if (typeof data.word !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room) return;
                 const player = room.players.find(p => p.id === clientData.id);
@@ -888,6 +984,7 @@ wss.on('connection', (ws) => {
                 }
             }
             else if (data.type === 'change_spectator_target') {
+                if (typeof data.targetId !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room || !clientData.isSpectator) return;
                 const spec = room.spectators.find(s => s.id === clientData.id);
@@ -897,13 +994,17 @@ wss.on('connection', (ws) => {
                 }
             }
             else if (data.type === 'chat') {
+                if (typeof data.message !== 'string') return;
+                let safeMsg = data.message.trim().substring(0, 200); // truncate super long msgs
+                if (!safeMsg) return;
                 const room = rooms.get(clientData.roomId);
                 if (!room) return;
-                broadcastChat(room.id, clientData.name, data.message, clientData.isSpectator);
+                broadcastChat(room.id, clientData.name, safeMsg, clientData.isSpectator);
             }
             else if (data.type === 'cheat_activated') {
                 const room = rooms.get(clientData.roomId);
-                const playerName = clientData.name || data.name || '未知玩家';
+                let playerName = (clientData.name || data.name || '未知玩家').trim().substring(0, 15);
+                if (!playerName) playerName = '未知玩家';
                 
                 // Get IP address from WebSocket
                 
@@ -962,6 +1063,7 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('close', () => {
+        clearInterval(rateLimitInterval);
         handleDisconnect(ws);
         clients.delete(ws); // Fully delete when WS actually closes
     });

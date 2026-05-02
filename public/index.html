@@ -517,17 +517,17 @@
             <div class="form-group">
                 <label>总人数</label>
                 <div class="number-picker">
-                    <button onclick="changeNumber('create-max', -1, 2, 16)">-</button>
+                    <button onclick="changeNumber('create-max', -1, 2, 12)">-</button>
                     <input type="number" id="create-max" value="4" readonly style="text-align: center;">
-                    <button onclick="changeNumber('create-max', 1, 2, 16)">+</button>
+                    <button onclick="changeNumber('create-max', 1, 2, 12)">+</button>
                 </div>
             </div>
             <div class="form-group">
-                <label>人机数</label>
+                <label>AI数</label>
                 <div class="number-picker">
-                    <button onclick="changeNumber('create-bots', -1, 0, 15)">-</button>
+                    <button onclick="changeNumber('create-bots', -1, 0, 11)">-</button>
                     <input type="number" id="create-bots" value="0" readonly style="text-align: center;">
-                    <button onclick="changeNumber('create-bots', 1, 0, 15)">+</button>
+                    <button onclick="changeNumber('create-bots', 1, 0, 11)">+</button>
                 </div>
             </div>
             <div class="form-row">
@@ -1044,8 +1044,9 @@
                     if (isHost) {
                         $('btn-start').style.display = 'block';
                         const allReady = currentRoom.players.every(p => p.ready);
-                        const canStart = currentRoom.players.length >= 2 && allReady;
-                        $('btn-start').disabled = !canStart;
+                        const canStart = currentRoom.players.length >= 1 && allReady && (currentRoom.players.length + currentRoom.players.filter(p=>p.isBot).length > 0); // Need at least someone to play, though technically length >= 1 allows 1 player to play alone. Let's make it so you need at least 2 entities total.
+                        const totalEntities = currentRoom.players.length;
+                        $('btn-start').disabled = !(allReady && totalEntities >= 2);
                     } else {
                         $('btn-start').style.display = 'none';
                     }
