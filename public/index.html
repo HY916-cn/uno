@@ -1549,7 +1549,7 @@
             const endScaleY = endRect.height / cardSize.height;
             innerEl.style.transform = `scale(${endScaleX}, ${endScaleY})`;
 
-            // 核心修改：将目标底牌显示的延迟再提早 200ms（即 100ms 时触发）
+            // 核心修改：将目标底牌显示的延迟设为 200ms 触发
             if (playerIdForReveal) {
                 setTimeout(() => {
                     if (window.animatingOpponentCards && window.animatingOpponentCards[playerIdForReveal] > 0) {
@@ -1565,7 +1565,7 @@
                             }
                         }
                     }
-                }, 100);
+                }, 200);
             }
 
             setTimeout(() => {
