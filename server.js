@@ -597,7 +597,7 @@ function handleDisconnect(ws) {
 
 const MAX_WS_CONNECTIONS = 2000;
 
-// 定时清理僵尸连接
+// 定时清理僵尸连接和冗余房间
 const pingInterval = setInterval(() => {
     wss.clients.forEach((ws) => {
         if (ws.isAlive === false) {
@@ -608,6 +608,21 @@ const pingInterval = setInterval(() => {
         ws.isAlive = false;
         ws.ping();
     });
+
+    // 房间垃圾回收 (GC): 清理没有真人玩家的冗余房间
+    for (const [roomId, room] of rooms.entries()) {
+        const humanCount = room.players.filter(p => !p.isBot).length;
+        if (humanCount === 0) {
+            log(room.id, 'INFO', '[系统GC] 房间内已无真人玩家，执行自动销毁');
+            if (room.aiTimer) clearTimeout(room.aiTimer);
+            if (room.spectators) {
+                room.spectators.forEach(s => {
+                    if (s.ws) sendError(s.ws, '房间已解散');
+                });
+            }
+            rooms.delete(roomId);
+        }
+    }
 }, 30000);
 
 wss.on('close', () => {

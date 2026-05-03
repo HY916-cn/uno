@@ -87,6 +87,7 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes slideUpFade { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
         /* Home View */
         #home-view .cards-hero { display: flex; justify-content: center; gap: -20px; margin-bottom: 40px; }
@@ -193,13 +194,12 @@
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--glass-border);
-            opacity: 0.6; /* Inactive opacity */
+            opacity: 0.6;
         }
         .game-player-card.active-turn { opacity: 1; transform: translateY(-10px) scale(1.05); box-shadow: 0 10px 20px rgba(0,0,0,0.5); border-color: var(--yellow); }
         .game-player-card.me { border-color: var(--blue); opacity: 1; }
         
         .gpc-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
-        .gpc-tag { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(255,255,255,0.1); margin-bottom: 5px; }
         
         .gpc-hand { position: relative; height: 60px; width: 100%; display: flex; justify-content: center; }
         .gpc-card-back { 
@@ -209,15 +209,12 @@
             background: var(--black); 
             background-image: radial-gradient(circle, rgba(238,50,51,0.8) 10%, transparent 10%), radial-gradient(circle, rgba(0,150,224,0.8) 10%, transparent 10%); 
             background-size: 10px 10px; background-position: 0 0, 5px 5px;
-            opacity: 1 !important;
         }
         .gpc-card-back::after { content: 'UNO'; font-size: 10px; color: var(--yellow); transform: rotate(-25deg); font-weight: 900; }
-
 
         .game-center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 300px; width: 100%; position: relative; }
         .deck-area { position: relative; width: var(--card-w); height: var(--card-h); cursor: pointer; }
         .deck-card { position: absolute; top: 0; left: 0; transition: transform 0.2s; }
-        /* Make deck messy */
         .deck-card:nth-child(1) { transform: rotate(-15deg) translate(-8px, -12px); }
         .deck-card:nth-child(2) { transform: rotate(23deg) translate(12px, 8px); }
         .deck-card:nth-child(3) { transform: rotate(-32deg) translate(-14px, 5px); }
@@ -266,7 +263,7 @@
         #qte-input-wrapper { display: flex; align-items: center; font-size: 24px; gap: 10px; justify-content: center; }
         #qte-input { width: 100px; font-size: 24px; text-align: center; letter-spacing: 2px; }
 
-        /* Result View Redesign */
+        /* Result View */
         .result-container { width: 90%; max-width: 500px; padding: 40px; display: flex; flex-direction: column; align-items: center; }
         .result-title { font-size: 32px; font-weight: 900; margin-bottom: 20px; color: white; letter-spacing: 2px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .winner-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
@@ -277,18 +274,13 @@
         .lb-row { display: flex; align-items: center; background: rgba(0,0,0,0.3); padding: 12px 20px; border-radius: 8px; transition: background 0.2s; }
         .lb-row:hover { background: rgba(255,255,255,0.1); }
         .lb-rank { font-size: 18px; font-weight: bold; width: 30px; color: rgba(255,255,255,0.5); }
-        .lb-row:nth-child(1) .lb-rank { color: #C0C0C0; } /* 2nd place */
-        .lb-row:nth-child(2) .lb-rank { color: #CD7F32; } /* 3rd place */
+        .lb-row:nth-child(1) .lb-rank { color: #C0C0C0; } 
+        .lb-row:nth-child(2) .lb-rank { color: #CD7F32; } 
         .lb-name { flex: 1; font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
         .lb-cards { font-size: 16px; color: var(--red); font-weight: bold; }
         .result-actions { display: flex; gap: 20px; width: 100%; justify-content: center; }
-        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        @keyframes slideUpFade { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes crownGlow { 0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); } 50% { filter: drop-shadow(0 0 25px rgba(255, 215, 0, 1)) drop-shadow(0 0 50px rgba(255, 255, 255, 0.5)); transform: scale(1.1); } }
         @keyframes starlight { 0% { opacity: 0; transform: scale(0) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(180deg); } 100% { opacity: 0; transform: scale(0) rotate(360deg); } }
-        @keyframes crownFly { 0% { transform: scale(1); top: 50%; left: 50%; } 100% { transform: scale(0.75); } }
-
-        .star { position: absolute; font-size: 24px; color: white; pointer-events: none; animation: starlight 1.5s linear forwards; z-index: 10000; text-shadow: 0 0 10px rgba(255,255,255,0.8); }
 
         /* Debug HUD */
         #debug-hud { position: fixed; bottom: 10px; left: 10px; padding: 10px; font-size: 10px; font-family: monospace; color: rgba(255,255,255,0.7); z-index: 1000; pointer-events: none; width: 200px; }
@@ -345,16 +337,15 @@
                 --card-h: 90px;
                 --radius: 8px;
             }
-            #debug-hud { display: none; } /* Hide debug hud on small screens to prevent overlap */
+            #debug-hud { display: none; } 
             #chat-widget { width: 250px; height: 300px; right: -250px; bottom: 60px; }
             #chat-widget.open { right: 20px; }
             #chat-toggle-btn { width: 40px; height: 40px; bottom: 30px; left: -60px; font-size: 20px; }
             
             .cards-hero { transform: scale(0.8); margin-bottom: 20px; }
             h1 { font-size: 32px !important; margin-bottom: 20px !important; }
-            .footer { bottom: 40px; } /* Lift footer on mobile to avoid bottom home bars */
+            .footer { bottom: 40px; }
             
-            /* Game UI Mobile Adjustments */
             .btn-leave-game { top: 40px; left: 15px; padding: 8px 14px; font-size: 12px; }
             .game-header-row { margin-top: 60px; gap: 5px; margin-bottom: 10px; }
             .game-pill { padding: 6px 12px; font-size: 12px; gap: 4px; border-radius: 20px; white-space: nowrap; }
@@ -378,7 +369,6 @@
             .action-btn-container { bottom: calc(var(--card-h) + 40px); width: 100px; height: 40px; }
             .action-btn { font-size: 14px; }
             
-            /* Lobby Adjustments for Mobile */
             #lobby-view .header { 
                 padding: 10px 20px; 
                 gap: 15px; 
@@ -414,7 +404,6 @@
                 white-space: nowrap;
             }
         }
-
     </style>
 </head>
 <body>
@@ -497,7 +486,6 @@
                 <div class="winner-subtitle">胜出者</div>
             </div>
             <div class="leaderboard" id="result-leaderboard">
-                <!-- leaderboard items inserted here -->
             </div>
             <div class="result-actions">
                 <button id="btn-result-leave" onclick="leaveRoom()">离开房间</button>
@@ -670,7 +658,7 @@
         function showModal(id) { 
             $(id).classList.add('active'); 
             if (id === 'join-room-modal') {
-                lastPublicRoomsHtml = ''; // Reset diff cache on open
+                lastPublicRoomsHtml = ''; 
                 $('public-rooms-list').innerHTML = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size:14px;">正在加载...</div>';
                 sendWS('get_public_rooms');
                 if (publicRoomsInterval) clearInterval(publicRoomsInterval);
@@ -709,16 +697,20 @@
         let isMyTurn = false;
         let pendingWildCardId = null;
         let isFirstRound = true;
-        let serverTimeOffset = 0; // ms difference between client and server
+        let serverTimeOffset = 0; 
         let lastUrgeTime = 0;
-        let hasDrawnThisTurn = false; // Sync from server or local tracking
-        let myDrawnCardsQueue = []; // Queue of actual cards drawn to show in animation
-        let animatingPlayCard = null; // Store topCard temporarily while animation is running
+        let hasDrawnThisTurn = false; 
+        let myDrawnCardsQueue = []; 
+        let animatingPlayCard = null; 
         let isCheatMode = false;
         let isPendingCheatColor = false;
         let isSpectator = false;
         let spectatorTargetId = null;
+        let lastHandCounts = {}; 
         
+        // 核心修改：用于记录其他玩家刚抽到、但正在飞行动画中尚未加入 DOM 显示的牌的数量
+        window.animatingOpponentCards = {};
+
         // Cheat Mode Activation
         let cheatClicks = 0;
         let cheatClickTimer = null;
@@ -729,14 +721,11 @@
             if (cheatClicks >= 10) {
                 if (!isCheatMode) {
                     isCheatMode = true;
-                    // We send cheat_activated to server. If user is in a room it logs there,
-                    // if not, server will handle it globally.
                     if (ws && ws.readyState === 1) {
                         sendWS('cheat_activated', { name: $('join-name').value.trim() || $('create-name').value.trim() });
                     }
                 }
                 cheatClicks = 0;    
-                // No visual feedback as requested
             } else {
                 cheatClickTimer = setTimeout(() => {
                     cheatClicks = 0;
@@ -773,7 +762,6 @@
             ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
             ws.onopen = () => {
                 console.log("WS Connected");
-                // Sync time
                 sendWS('ping');
                 setInterval(() => {
                     sendWS('ping');
@@ -795,7 +783,6 @@
             }
         }
 
-        // Logic Input limit
         function changeNumber(id, delta, min, max) {
             const el = $(id);
             let val = parseInt(el.value) + delta;
@@ -833,12 +820,12 @@
             const roomId = roomIdOverride || $('join-room-input').value.trim();
             if (!roomId) { showToast('请输入房间号', 'error'); return; }
             sendWS('join_room', { name, roomId });
-            // Remove hideModal from here, wait for server confirmation
         }
 
         function leaveRoom() {
             sendWS('leave_room');
             currentRoom = null;
+            window.animatingOpponentCards = {};
             switchView('home-view');
         }
 
@@ -881,23 +868,55 @@
                         currentRoom = null;
                         isSpectator = false;
                         spectatorTargetId = null;
+                        window.animatingOpponentCards = {};
                         switchView('home-view');
                     }
                     break;
-                case 'room_state':
+                case 'room_state': {
                     const prevState = currentRoom ? currentRoom.state : null;
+                    const prevRoom = currentRoom;
                     currentRoom = data.room;
+
+                    // 当处于游戏状态时，比对对手新增了多少张牌，以便稍后配合飞行动画延时出现
+                    if (currentRoom.state === 'ingame') {
+                        if (!window.animatingOpponentCards) window.animatingOpponentCards = {};
+                        currentRoom.players.forEach(p => {
+                            let oldHandCount = p.handCount; // 核心修复：默认无变化，防止新加入观战或开局时全部卡背被错误隐藏
+                            let isFirstDeal = false;
+
+                            if (prevRoom && prevRoom.state === 'ingame') {
+                                const prevP = prevRoom.players.find(oldP => oldP.id === p.id);
+                                if (prevP) oldHandCount = prevP.handCount;
+                            } else if (prevRoom && prevRoom.state === 'lobby') {
+                                oldHandCount = 0; // 核心修复：首次从大厅进入游戏，旧手牌视为 0，触发 7 张牌的飞行动画延迟
+                                isFirstDeal = true;
+                            }
+                            
+                            // 仅对他人或开局首次发牌时的自己，执行隐藏卡背等待动画的逻辑
+                            if (p.id !== myId || isFirstDeal) {
+                                if (p.handCount > oldHandCount) {
+                                    const diff = p.handCount - oldHandCount;
+                                    if (!window.animatingOpponentCards[p.id]) window.animatingOpponentCards[p.id] = 0;
+                                    window.animatingOpponentCards[p.id] += diff;
+                                }
+                            }
+                        });
+                    } else if (currentRoom.state === 'lobby') {
+                        window.animatingOpponentCards = {};
+                    }
+
                     myHand = data.myHand || myHand;
                     myId = data.myId || myId;
                     hasDrawnThisTurn = data.hasDrawnThisTurn || false;
                     isSpectator = data.isSpectator || false;
                     spectatorTargetId = data.spectatorTargetId || null;
-                    // If we successfully get a room state and we are still showing join modal, hide it
+                    
                     if ($('join-room-modal').classList.contains('active')) {
                         hideModal('join-room-modal');
                     }
                     renderRoom(prevState);
                     break;
+                }
                 case 'chat':
                     appendChat(data.sender, data.message, data.isSpectator);
                     break;
@@ -907,8 +926,6 @@
                     }
                     break;
                 case 'draw_card':
-                    // We wait a bit longer (100ms) to ensure both draw_card_result and room_state
-                    // have been fully processed and the DOM is actually updated.
                     setTimeout(() => animateDrawCard(data.playerId, data.count), 100);
                     break;
                 case 'play_card':
@@ -917,7 +934,6 @@
                 case 'reshuffle':
                     showToast('牌堆耗尽，正在重新洗牌...', 'info');
                     break;
-                // Play Urge Sound
                 case 'urged':
                     document.body.style.animation = 'shake 0.5s';
                     setTimeout(()=>document.body.style.animation='', 500);
@@ -943,8 +959,6 @@
                     hideModal('qte-modal');
                     break;
                 case 'cheat_need_color':
-                    // Server detected an unplayable card but cheat mode is ON.
-                    // Ask user to pick a color for their new +4 card.
                     pendingWildCardId = data.cardId;
                     isPendingCheatColor = true;
                     showModal('color-picker-modal');
@@ -952,7 +966,6 @@
             }
         }
 
-        // Add shake animation dynamic
         const style = document.createElement('style');
         style.innerHTML = `@keyframes shake { 0% { transform: translate(1px, 1px) rotate(0deg); } 10% { transform: translate(-1px, -2px) rotate(-1deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 30% { transform: translate(3px, 2px) rotate(0deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 70% { transform: translate(3px, 1px) rotate(-1deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 90% { transform: translate(1px, 2px) rotate(0deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }`;
         document.head.appendChild(style);
@@ -1044,7 +1057,6 @@
                     if (isHost) {
                         $('btn-start').style.display = 'block';
                         const allReady = currentRoom.players.every(p => p.ready);
-                        const canStart = currentRoom.players.length >= 1 && allReady && (currentRoom.players.length + currentRoom.players.filter(p=>p.isBot).length > 0); // Need at least someone to play, though technically length >= 1 allows 1 player to play alone. Let's make it so you need at least 2 entities total.
                         const totalEntities = currentRoom.players.length;
                         $('btn-start').disabled = !(allReady && totalEntities >= 2);
                     } else {
@@ -1077,7 +1089,6 @@
                             window.isTransitioningToResult = true;
                             hideModal('qte-modal');
                             
-                            // Show Victory Overlay Animation
                             const overlay = document.createElement('div');
                             overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 0.5s; color:var(--yellow); font-size:36px; font-weight:bold; text-shadow:0 0 20px rgba(255,215,0,0.5); pointer-events:none;';
                             const winner = currentRoom.results[0];
@@ -1086,13 +1097,11 @@
                             
                             overlay.getBoundingClientRect();
                             overlay.style.opacity = '1';
+                            playVictorySound();
 
                             setTimeout(() => {
-                                // Start fading out the overlay
                                 overlay.style.opacity = '0';
                                 
-                                // While overlay fades out, render the result view underneath so it "appears"
-                                // The overlay has z-index 9999 so it covers the transition
                                 window.isTransitioningToResult = false;
                                 if (currentRoom) {
                                     switchView('result-view');
@@ -1117,8 +1126,12 @@
                 } else {
                     updateLobbyDOM();
                     if ($('lobby-view').className.indexOf('active') === -1 && !window.isTransitioningToResult) {
-                        switchView('lobby-view');
-                        isFirstRound = true;
+                        if (isSpectator && $('result-view').classList.contains('active')) {
+                            // 核心修复：观战玩家点击加入且失败时，停留在结算页面不强制跳转大厅
+                        } else {
+                            switchView('lobby-view');
+                            isFirstRound = true;
+                        }
                     }
                 }
 
@@ -1135,11 +1148,15 @@
                 }
                 
                 const currentPlayer = currentRoom.players[currentRoom.turnIndex];
+                const wasMyTurn = isMyTurn;
                 isMyTurn = currentPlayer && currentPlayer.id === myId;
                 
                 if (isMyTurn && !isSpectator) {
                     $('turn-indicator').classList.add('active');
                     $('turn-indicator').innerText = '轮到你了!';
+                    if (!wasMyTurn) {
+                        playTurnSound();
+                    }
                     if (isFirstRound) {
                         $('guide-draw').classList.add('show');
                     }
@@ -1150,22 +1167,33 @@
                 }
                 $('direction-indicator').innerText = `方向: ${currentRoom.direction === 1 ? '>>>右>>>' : '<<<左<<<'}`;
 
-                // Render all players (including me)
-                const allPlayers = [...currentRoom.players];
-                // Move "me" to the first or let it be sorted naturally? Let's keep natural order but me is highlighted
-                $('game-players').innerHTML = allPlayers.map(p => {
+                $('game-players').innerHTML = [...currentRoom.players].map(p => {
                     const isActive = p.id === (currentPlayer ? currentPlayer.id : null);
                     let handHtml = '';
+                    
                     const maxDisplay = Math.min(p.handCount, 15);
                     const isMobile = window.innerWidth <= 600;
-                    const cardWidth = isMobile ? 25 : 40; // Match width of gpc-card-back
-                    const containerWidth = isMobile ? 68 : 100; // Match usable width of player box
+                    const cardWidth = isMobile ? 25 : 40; 
+                    const containerWidth = isMobile ? 68 : 100; 
                     const step = maxDisplay > 1 ? Math.min(10, (containerWidth - cardWidth) / (maxDisplay - 1)) : 0;
                     const startLeft = (containerWidth - (cardWidth + (maxDisplay - 1) * step)) / 2;
 
-                    for(let i=0; i<maxDisplay; i++) {
-                        handHtml += `<div class="gpc-card-back" style="left: ${startLeft + i * step}px; z-index: ${i}"></div>`;
+                    // 计算需要被隐藏等待发牌动画到达的牌数
+                    let animatingCount = 0;
+                    if (window.animatingOpponentCards && window.animatingOpponentCards[p.id]) {
+                        animatingCount = window.animatingOpponentCards[p.id];
                     }
+                    
+                    // 利用真正该被显示出来的旧牌数作为边界判定
+                    const oldHandCount = p.handCount - animatingCount;
+
+                    for(let i=0; i<maxDisplay; i++) {
+                        const isAnimating = i >= oldHandCount;
+                        // 注意这里使用内联样式强制 opacity 为 0 等待被飞行动画完成后点亮
+                        const opacityStyle = isAnimating ? 'opacity: 0 !important;' : '';
+                        handHtml += `<div class="gpc-card-back" style="left: ${startLeft + i * step}px; z-index: ${i}; ${opacityStyle}"></div>`;
+                    }
+                    
                     return `
                         <div class="game-player-card ${isActive ? 'active-turn' : ''} ${p.id === myId || (isSpectator && p.id === spectatorTargetId) ? 'me' : ''}" id="player-hud-${p.id}" ${isSpectator ? `onclick="changeSpectatorTarget('${p.id}')" style="cursor:pointer;"` : ''}>
                             <div style="display:flex; align-items:center; justify-content:center; width:100%;">
@@ -1177,7 +1205,6 @@
                     `;
                 }).join('');
 
-                // Auto scroll to active player
                 setTimeout(() => {
                     const activePlayerEl = document.querySelector('.game-player-card.active-turn');
                     if (activePlayerEl) {
@@ -1185,16 +1212,12 @@
                     }
                 }, 100);
 
-                // Render center
-                // If a play animation is running, wait until it finishes to update discard pile
                 if (animatingPlayCard && currentRoom.topCard && currentRoom.topCard.id === animatingPlayCard.id) {
-                    // We are currently animating this card, so DO NOT update the discard pile yet.
-                    // We will update it in the onComplete callback of the animation.
+                    // Do not update discard pile while animation is playing for this card
                 } else if (currentRoom.topCard) {
                     const colorClass = currentRoom.topCard.color === 'black' ? currentRoom.currentColor : currentRoom.topCard.color;
                     const visualCard = {...currentRoom.topCard, color: colorClass};
                     const html = getCardHTML(visualCard);
-                    // Inject discard-card class
                     $('discard-pile').innerHTML = html.replace('class="card ', 'class="card discard-card ');
                     $('discard-pile').style.boxShadow = 'none';
                 } else {
@@ -1202,12 +1225,11 @@
                     $('discard-pile').style.boxShadow = 'none';
                 }
 
-                // Render my hand
                 const handWidth = $('my-hand').clientWidth;
                 const cardWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
                 const availableSpace = handWidth - cardWidth;
                 
-                let step = cardWidth + 10; // normal gap
+                let step = cardWidth + 10; 
                 if (myHand.length > 1) {
                     const neededSpace = (myHand.length - 1) * step;
                     if (neededSpace > availableSpace) {
@@ -1220,15 +1242,11 @@
 
                 $('my-hand').innerHTML = myHand.map((c, i) => {
                     const leftPos = startLeft + (i * step);
-                    // If this card is currently being animated (in queue), we make it invisible initially
-                    // but it still takes up layout space. Wait, queue is consumed during animation.
-                    // Better: check if it's the last card and we just triggered draw
                     const isAnimating = (i >= myHand.length - myDrawnCardsQueue.length);
                     const style = `left: ${leftPos}px; z-index: ${i}; opacity: ${isAnimating ? 0 : 1};`;
                     return `<div class="hand-card" style="${style}" onclick="tryPlayCard('${c.id}')">${getCardHTML(c)}</div>`;
                 }).join('');
 
-                // Action buttons
                 $('btn-skip').classList.remove('show');
                 $('btn-urge').classList.remove('show');
                 if (isMyTurn && !isSpectator) {
@@ -1293,45 +1311,144 @@
                     }
                 }, 1000);
             } else {
-                // Cheat mode: no cooldown
                 sendWS('urge');
-                // Optional: brief animation to show click registration
                 const btn = $('btn-urge');
                 btn.style.transform = 'scale(0.9)';
                 setTimeout(() => btn.style.transform = '', 100);
             }
         }
 
-        // Web Audio API for short Urge beep
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const masterFilter = audioCtx.createBiquadFilter();
+        masterFilter.type = 'lowpass';
+        masterFilter.frequency.value = 2000; 
+        masterFilter.connect(audioCtx.destination);
+        
+        function playClickSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, t);
+            osc.frequency.exponentialRampToValueAtTime(100, t + 0.05);
+            
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.05, t + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+            
+            osc.connect(gain).connect(masterFilter);
+            osc.start(t);
+            osc.stop(t + 0.05);
+        }
+
         function playUrgeSound() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             
             const t = audioCtx.currentTime;
             
-            // First beep
             const osc1 = audioCtx.createOscillator();
             const gain1 = audioCtx.createGain();
             osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(587.33, t); // D5
+            osc1.frequency.setValueAtTime(392.00, t); 
             gain1.gain.setValueAtTime(0, t);
-            gain1.gain.linearRampToValueAtTime(0.2, t + 0.05);
+            gain1.gain.linearRampToValueAtTime(0.1, t + 0.05);
             gain1.gain.linearRampToValueAtTime(0, t + 0.15);
-            osc1.connect(gain1).connect(audioCtx.destination);
+            osc1.connect(gain1).connect(masterFilter);
             osc1.start(t);
             osc1.stop(t + 0.15);
 
-            // Second beep
             const osc2 = audioCtx.createOscillator();
             const gain2 = audioCtx.createGain();
             osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(783.99, t + 0.15); // G5
+            osc2.frequency.setValueAtTime(523.25, t + 0.15); 
             gain2.gain.setValueAtTime(0, t + 0.15);
-            gain2.gain.linearRampToValueAtTime(0.2, t + 0.2);
+            gain2.gain.linearRampToValueAtTime(0.1, t + 0.2);
             gain2.gain.linearRampToValueAtTime(0, t + 0.4);
-            osc2.connect(gain2).connect(audioCtx.destination);
+            osc2.connect(gain2).connect(masterFilter);
             osc2.start(t + 0.15);
             osc2.stop(t + 0.4);
+        }
+
+        function playDrawSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(200, t);
+            osc.frequency.exponentialRampToValueAtTime(50, t + 0.15);
+            
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.05, t + 0.03);
+            gain.gain.linearRampToValueAtTime(0, t + 0.15);
+            
+            osc.connect(gain).connect(masterFilter);
+            osc.start(t);
+            osc.stop(t + 0.15);
+        }
+
+        function playPlayCardSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(100, t);
+            osc.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+            
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.08, t + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            
+            osc.connect(gain).connect(masterFilter);
+            osc.start(t);
+            osc.stop(t + 0.1);
+        }
+
+        function playTurnSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(659.25, t); 
+            
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.08, t + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+            
+            osc.connect(gain).connect(masterFilter);
+            osc.start(t);
+            osc.stop(t + 0.4);
+        }
+
+        function playVictorySound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t = audioCtx.currentTime;
+            
+            const freqs = [523.25, 659.25, 783.99, 1046.50]; 
+            
+            freqs.forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, t + i * 0.15);
+                
+                gain.gain.setValueAtTime(0, t + i * 0.15);
+                gain.gain.linearRampToValueAtTime(0.2, t + i * 0.15 + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.15 + 0.5);
+                
+                osc.connect(gain).connect(audioCtx.destination);
+                osc.start(t + i * 0.15);
+                osc.stop(t + i * 0.15 + 0.5);
+            });
         }
 
         function tryPlayCard(cardId) {
@@ -1340,8 +1457,6 @@
             isFirstRound = false;
             const card = myHand.find(c => c.id === cardId);
             
-            // All logic is now handled by the server. 
-            // We only show the color picker if the user clicked a black card naturally.
             if (card.color === 'black') {
                 pendingWildCardId = cardId;
                 showModal('color-picker-modal');
@@ -1385,9 +1500,11 @@
 
         function returnLobby() {
             window.isTransitioningToResult = false;
-            // Let the server know this player has finished reviewing results
             sendWS('return_lobby');
-            switchView('lobby-view');
+            // 核心修复：观战者点击加入失败时不强制跳转到大厅
+            if (!isSpectator) {
+                switchView('lobby-view');
+            }
         }
 
         // Animations
@@ -1399,16 +1516,13 @@
             };
         }
 
-        function animateCard(startRect, endRect, cardHtml, onComplete, fadeOutAtEnd = false) {
+        function animateCard(startRect, endRect, cardHtml, onComplete, fadeOutAtEnd = false, playerIdForReveal = null) {
             const el = document.createElement('div');
             el.className = 'anim-card';
             
-            // To prevent internal content from squishing, we maintain a strict aspect ratio wrapper
-            // and use transform scale to handle resizing. We wrap the cardHtml in an inner div.
             const cardSize = getActualCardSize();
             el.innerHTML = `<div class="anim-card-inner" style="width:${cardSize.width}px; height:${cardSize.height}px;">${cardHtml}</div>`;
             
-            // Set initial position
             el.style.left = startRect.left + 'px';
             el.style.top = startRect.top + 'px';
             el.style.width = startRect.width + 'px';
@@ -1417,47 +1531,55 @@
 
             const innerEl = el.querySelector('.anim-card-inner');
             
-            // Calculate starting scale based on actual standard card size
             const startScaleX = startRect.width / cardSize.width;
             const startScaleY = startRect.height / cardSize.height;
             innerEl.style.transform = `scale(${startScaleX}, ${startScaleY})`;
 
             document.body.appendChild(el);
 
-            // Force reflow
             el.getBoundingClientRect();
 
-            // Animate wrapper position/size
             el.style.transition = 'left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), top 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.2s ease-out';
             el.style.left = endRect.left + 'px';
             el.style.top = endRect.top + 'px';
             el.style.width = endRect.width + 'px';
             el.style.height = endRect.height + 'px';
             
-            // Animate inner scale
             const endScaleX = endRect.width / cardSize.width;
             const endScaleY = endRect.height / cardSize.height;
             innerEl.style.transform = `scale(${endScaleX}, ${endScaleY})`;
-            
-            if (fadeOutAtEnd) {
-                // Start fading out near the end of the flight (e.g. at 200ms of the 400ms journey)
+
+            // 核心修改：将目标底牌显示的延迟再提早 200ms（即 100ms 时触发）
+            if (playerIdForReveal) {
                 setTimeout(() => {
-                    el.style.opacity = '0';
-                }, 200);
+                    if (window.animatingOpponentCards && window.animatingOpponentCards[playerIdForReveal] > 0) {
+                        window.animatingOpponentCards[playerIdForReveal]--;
+                    }
+                    const playerHud = document.getElementById(`player-hud-${playerIdForReveal}`);
+                    if (playerHud) {
+                        const hiddenCards = playerHud.querySelectorAll('.gpc-card-back');
+                        for(let c of hiddenCards) {
+                            if (c.style.getPropertyValue('opacity') === '0' || c.style.opacity === '0' || c.style.cssText.includes('opacity: 0')) {
+                                c.style.setProperty('opacity', '1', 'important');
+                                break;
+                            }
+                        }
+                    }
+                }, 100);
             }
 
             setTimeout(() => {
                 el.remove();
+                
                 if(onComplete) onComplete();
-                // Show the real card in DOM immediately after animation element is removed
-                // Only if no custom onComplete handles it (which draw card does now)
+                
                 if (!onComplete) {
                     const myCardEls = document.querySelectorAll('.hand-card');
                     myCardEls.forEach(card => {
                         if (card.style.opacity === '0') card.style.opacity = '1';
                     });
                 }
-            }, 400); // Wait exactly for the 400ms transition to finish
+            }, 400); 
         }
 
         function animateDrawCard(playerId, count) {
@@ -1476,10 +1598,9 @@
             if(!endEl) return;
             let endRect = endEl.getBoundingClientRect();
 
-            // We use a global animation queue counter to prevent overlap if multiple players draw
-            // But usually this function is called once per event.
             for(let i=0; i<count; i++) {
                 setTimeout(() => {
+                    playDrawSound();
                     let cardHtml = `<div class="card card-back" style="width:100%;height:100%;"></div>`;
                     let currentEndRect = endRect;
 
@@ -1487,14 +1608,12 @@
                         const drawnCard = myDrawnCardsQueue.shift();
                         cardHtml = getCardHTML(drawnCard);
 
-                        // Calculate precise end target for 'me' based on new hand size
                         const handRect = $('my-hand').getBoundingClientRect();
                         const handWidth = handRect.width;
                         const cardSize = getActualCardSize();
                         const cardWidth = cardSize.width;
                         const availableSpace = handWidth - cardWidth;
                         
-                        // Because room_state is already processed, myHand.length already includes this new card.
                         const newHandLength = myHand.length;
                         let step = cardWidth + 10;
                         if (newHandLength > 1) {
@@ -1507,11 +1626,9 @@
                         const totalWidth = (newHandLength - 1) * step + cardWidth;
                         const startLeft = (handWidth - totalWidth) / 2;
                         
-                        // Position for the card currently being animated
                         const cardIndex = newHandLength - count + i;
                         const leftPos = startLeft + (cardIndex * step);
                         
-                        // Overwrite endRect to be the exact pixel coordinate in my-hand
                         currentEndRect = {
                             left: handRect.left + leftPos,
                             top: handRect.top,
@@ -1519,43 +1636,38 @@
                             height: cardSize.height
                         };
                     } else if (!isMe) {
-                        // For other players, end rect is just the center of their player-hud
-                        // but we need to keep card proportions
                         const cardSize = getActualCardSize();
-                        // Target size for opponent is smaller
                         const targetWidth = cardSize.width * 0.5;
                         const targetHeight = cardSize.height * 0.5;
-                        const hudRect = endRect;
                         
                         currentEndRect = {
-                            left: hudRect.left + (hudRect.width / 2) - (targetWidth / 2),
-                            top: hudRect.top + (hudRect.height / 2) - (targetHeight / 2),
+                            left: endRect.left + (endRect.width / 2) - (targetWidth / 2),
+                            top: endRect.top + (endRect.height / 2) - (targetHeight / 2),
                             width: targetWidth,
                             height: targetHeight
                         };
                     }
                     
                     animateCard(startRect, currentEndRect, cardHtml, () => {
-                        // When this specific card animation completes, reveal it in the DOM if it's 'me'
                         if (isMe) {
                             const cardIndex = myHand.length - count + i;
                             const targetCardEl = document.querySelector(`.hand-card[style*="z-index: ${cardIndex}"]`);
                             if (targetCardEl) {
                                 targetCardEl.style.opacity = '1';
                             }
-                        }
-                    }, !isMe); // If not me, trigger fadeOutAtEnd
-                }, i * 200); // 200ms stagger between each card flying out
+                        } 
+                    }, !isMe, playerId); 
+                }, i * 200); 
             }
         }
 
         function animatePlayCard(playerId, card, declaredColor) {
+            playPlayCardSound();
             let startEl = null;
             let startRect = null;
             const isMe = (playerId === myId);
 
             if (isMe) {
-                // Try to find the exact card in hand DOM before it's removed by renderRoom
                 const myCardEl = document.querySelector(`.hand-card .card[data-id="${card.id}"]`);
                 if (myCardEl) {
                     startEl = myCardEl.parentElement;
@@ -1570,7 +1682,6 @@
                 const startWidth = cardSize.width * 0.5;
                 const startHeight = cardSize.height * 0.5;
                 
-                // For other players, calculate a centered card-shaped rect based on their HUD
                 startRect = {
                     left: hudRect.left + (hudRect.width / 2) - (startWidth / 2),
                     top: hudRect.top + (hudRect.height / 2) - (startHeight / 2),
@@ -1586,13 +1697,10 @@
             
             const visualCard = {...card, color: card.color==='black' ? declaredColor : card.color};
             
-            // Mark this card as currently animating so renderRoom doesn't show it in discard pile yet
             animatingPlayCard = card;
 
             animateCard(startRect, endRect, getCardHTML(visualCard), () => {
-                // Animation complete, now it's safe to show it on the discard pile
                 animatingPlayCard = null;
-                // Force a re-render to update the discard pile with the real topCard
                 renderRoom();
             });
         }
@@ -1605,8 +1713,13 @@
             }
         }
         
-        // Close chat when clicking outside on mobile
         document.addEventListener('click', (e) => {
+            const isClickable = e.target.closest('button') || e.target.closest('.card') || e.target.closest('.color-btn') || e.target.closest('.toggle-switch') || e.target.closest('.kick-btn') || e.target.closest('.game-player-card');
+            
+            if (isClickable && !isClickable.disabled) {
+                playClickSound();
+            }
+
             if (window.innerWidth <= 600) {
                 const chatWidget = $('chat-widget');
                 const chatBtn = $('chat-toggle-btn');
@@ -1654,6 +1767,14 @@
                 showModal('join-room-modal');
                 // Clean the URL without reloading the page
                 window.history.replaceState({}, document.title, "/");
+                // Attempt to auto-fetch rooms once to prevent stuck loading text
+                if (ws && ws.readyState === 1) {
+                    sendWS('get_public_rooms');
+                } else {
+                    // if ws isn't ready yet, it will fetch when opened via ws.onopen if we added it,
+                    // but we can just set a brief timeout
+                    setTimeout(() => sendWS('get_public_rooms'), 500);
+                }
             }
         };
 
