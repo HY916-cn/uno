@@ -243,7 +243,9 @@
         .guide-text.show { opacity: 1; }
         @keyframes bounce { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -5px); } }
 
-        .game-bottom { position: relative; width: 100%; height: var(--card-h); display: flex; justify-content: center; align-items: flex-end; padding-bottom: 20px; margin-bottom: 20px; }
+        .game-bottom { position: relative; width: 100%; height: var(--card-h); display: flex; justify-content: center; align-items: flex-end; padding-bottom: 20px; margin-bottom: 20px; transition: opacity 0.3s ease, transform 0.3s ease; }
+        .game-bottom.hide-bottom { opacity: 0; transform: translateY(40px); pointer-events: none; }
+        
         .my-hand { display: flex; justify-content: center; position: relative; height: var(--card-h); width: 80%; }
         .hand-card { 
             position: absolute; 
@@ -324,6 +326,25 @@
         @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeOut { to { opacity: 0; transform: translateX(20px); } }
 
+        /* BigScreen Modal */
+        #bigscreen-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 2px solid var(--yellow); border-radius: 50px;
+            padding: 15px 35px; z-index: 5000; display: flex; align-items: center; justify-content: center; gap: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 20px rgba(255, 215, 0, 0.2); 
+            opacity: 0; visibility: hidden; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+        #bigscreen-modal.active { display: flex; opacity: 1; visibility: visible; transform: translate(-50%, -50%) scale(1); }
+        .swap-icon { width: 28px; height: 28px; animation: spin-swap 1s ease-in-out infinite; }
+        @keyframes spin-swap { 0% { transform: rotate(0deg); } 100% { transform: rotate(180deg); } }
+        #bigscreen-modal-text {
+            color: var(--yellow); font-size: 22px; font-weight: bold;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5); letter-spacing: 1px;
+            text-align: center; margin: 0;
+        }
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -403,6 +424,12 @@
                 flex: 1;
                 white-space: nowrap;
             }
+            #bigscreen-modal {
+                padding: 15px 25px;
+            }
+            #bigscreen-modal-text {
+                font-size: 20px;
+            }
         }
     </style>
 </head>
@@ -430,7 +457,7 @@
                 <span style="font-size: 16px;">房间号:</span> 
                 <span id="lobby-room-id" style="font-weight: bold; color: var(--yellow); font-size: 24px; line-height: 1;">---</span>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="display: flex; gap: 10px; align-items: center;" id="lobby-btn-group">
                 <button onclick="copyRoomId()">复制</button>
                 <button onclick="copyLink()">分享链接</button>
             </div>
@@ -510,7 +537,7 @@
                     <button onclick="changeNumber('create-max', 1, 2, 12)">+</button>
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="bots-group">
                 <label>AI数</label>
                 <div class="number-picker">
                     <button onclick="changeNumber('create-bots', -1, 0, 11)">-</button>
@@ -519,15 +546,22 @@
                 </div>
             </div>
             <div class="form-row">
+                <label>大屏同机模式</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="create-bigscreen" onchange="toggleBigScreen()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="form-row" id="hidden-group">
                 <label>隐藏房间</label>
                 <label class="toggle-switch">
                     <input type="checkbox" id="create-hidden">
                     <span class="slider"></span>
                 </label>
             </div>
-            <div class="form-row" style="margin-top: 10px;">
-                <button onclick="hideModal('create-room-modal')">取消</button>
-                <button class="primary" onclick="createRoom()">创建</button>
+            <div style="display: flex; gap: 15px; margin-top: 10px; width: 100%;">
+                <button style="flex: 1;" onclick="hideModal('create-room-modal')">取消</button>
+                <button class="primary" style="flex: 1;" onclick="createRoom()">创建</button>
             </div>
         </div>
     </div>
@@ -549,9 +583,9 @@
                     <div style="text-align:center; color:rgba(255,255,255,0.5); font-size:14px;">正在加载...</div>
                 </div>
             </div>
-            <div class="form-row" style="margin-top: 10px;">
-                <button onclick="hideModal('join-room-modal')">取消</button>
-                <button class="primary" onclick="joinRoom()">加入</button>
+            <div style="display: flex; gap: 15px; margin-top: 10px; width: 100%;">
+                <button style="flex: 1;" onclick="hideModal('join-room-modal')">取消</button>
+                <button class="primary" style="flex: 1;" onclick="joinRoom()">加入</button>
             </div>
         </div>
     </div>
@@ -608,6 +642,14 @@
             <input type="text" id="chat-input" placeholder="输入消息..." onkeypress="if(event.key==='Enter') sendChat()">
             <button class="primary" onclick="sendChat()">发送</button>
         </div>
+    </div>
+
+    <!-- BigScreen Switching Modal -->
+    <div id="bigscreen-modal">
+        <svg class="swap-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/>
+        </svg>
+        <div id="bigscreen-modal-text">玩家1 的回合</div>
     </div>
 
     <!-- Debug HUD -->
@@ -700,7 +742,7 @@
         let serverTimeOffset = 0; 
         let lastUrgeTime = 0;
         let hasDrawnThisTurn = false; 
-        let myDrawnCardsQueue = []; 
+        let drawnCardsQueue = {}; 
         let animatingPlayCard = null; 
         let isCheatMode = false;
         let isPendingCheatColor = false;
@@ -732,6 +774,21 @@
                 }, 2000);
             }
         });
+
+        function toggleBigScreen() {
+            const isBig = $('create-bigscreen').checked;
+            if (isBig) {
+                $('create-bots').value = 0;
+                $('create-hidden').checked = true;
+            }
+            $('create-bots').disabled = isBig;
+            $('create-hidden').disabled = isBig;
+            $('create-name').disabled = isBig;
+            
+            $('create-name').parentElement.style.opacity = isBig ? '0.5' : '1';
+            $('bots-group').style.opacity = isBig ? '0.5' : '1';
+            $('hidden-group').style.opacity = isBig ? '0.5' : '1';
+        }
 
         // Init
         const cachedName = localStorage.getItem('uno_player_name') || '';
@@ -784,6 +841,7 @@
         }
 
         function changeNumber(id, delta, min, max) {
+            if (id === 'create-bots' && $('create-bigscreen').checked) return;
             const el = $(id);
             let val = parseInt(el.value) + delta;
             if (val < min) val = min;
@@ -803,13 +861,14 @@
         }
 
         function createRoom() {
+            const isBigScreen = $('create-bigscreen').checked;
             const name = $('create-name').value.trim();
-            if (!name) { showToast('请输入昵称', 'error'); return; }
-            localStorage.setItem('uno_player_name', name);
+            if (!isBigScreen && !name) { showToast('请输入昵称', 'error'); return; }
+            if (!isBigScreen) localStorage.setItem('uno_player_name', name);
             const maxPlayers = parseInt($('create-max').value);
             const bots = parseInt($('create-bots').value);
             const hidden = $('create-hidden').checked;
-            sendWS('create_room', { name, maxPlayers, bots, hidden });
+            sendWS('create_room', { name, maxPlayers, bots, hidden, isBigScreen });
             hideModal('create-room-modal');
         }
 
@@ -864,7 +923,7 @@
                     break;
                 case 'error':
                     showToast(data.message, 'error');
-                    if (data.message === '房间已解散') {
+                    if (data.message === '房间已解散' || data.message === '房主已离开，房间自动解散') {
                         currentRoom = null;
                         isSpectator = false;
                         spectatorTargetId = null;
@@ -877,22 +936,20 @@
                     const prevRoom = currentRoom;
                     currentRoom = data.room;
 
-                    // 当处于游戏状态时，比对对手新增了多少张牌，以便稍后配合飞行动画延时出现
-                    if (currentRoom.state === 'ingame') {
+                    if (currentRoom.state === 'ingame' || currentRoom.state === 'switching_turn') {
                         if (!window.animatingOpponentCards) window.animatingOpponentCards = {};
                         currentRoom.players.forEach(p => {
-                            let oldHandCount = p.handCount; // 核心修复：默认无变化，防止新加入观战或开局时全部卡背被错误隐藏
+                            let oldHandCount = p.handCount; 
                             let isFirstDeal = false;
 
-                            if (prevRoom && prevRoom.state === 'ingame') {
+                            if (prevRoom && (prevRoom.state === 'ingame' || prevRoom.state === 'switching_turn')) {
                                 const prevP = prevRoom.players.find(oldP => oldP.id === p.id);
                                 if (prevP) oldHandCount = prevP.handCount;
                             } else if (prevRoom && prevRoom.state === 'lobby') {
-                                oldHandCount = 0; // 核心修复：首次从大厅进入游戏，旧手牌视为 0，触发 7 张牌的飞行动画延迟
+                                oldHandCount = 0; 
                                 isFirstDeal = true;
                             }
                             
-                            // 仅对他人或开局首次发牌时的自己，执行隐藏卡背等待动画的逻辑
                             if (p.id !== myId || isFirstDeal) {
                                 if (p.handCount > oldHandCount) {
                                     const diff = p.handCount - oldHandCount;
@@ -922,7 +979,9 @@
                     break;
                 case 'draw_card_result':
                     if (data.cards) {
-                        myDrawnCardsQueue.push(...data.cards);
+                        const pId = data.playerId || myId;
+                        if (!drawnCardsQueue[pId]) drawnCardsQueue[pId] = [];
+                        drawnCardsQueue[pId].push(...data.cards);
                     }
                     break;
                 case 'draw_card':
@@ -1000,6 +1059,28 @@
         function renderRoom(prevState) {
             if (!currentRoom) return;
             
+            // 大屏模式：大厅 UI 自动隐藏选项
+            if (currentRoom.isBigScreen) {
+                const header = document.querySelector('#lobby-view .header');
+                if (header) header.style.display = 'none';
+                $('chat-toggle-btn').style.display = 'none';
+                $('btn-ready').style.display = 'none';
+            } else {
+                const header = document.querySelector('#lobby-view .header');
+                if (header) header.style.display = 'flex';
+                $('chat-toggle-btn').style.display = 'flex';
+                $('btn-ready').style.display = 'block';
+            }
+            
+            // 大屏模式：切屏弹窗
+            if (currentRoom.isBigScreen && currentRoom.state === 'switching_turn') {
+                const targetPlayer = currentRoom.players[currentRoom.switchTargetIndex];
+                $('bigscreen-modal-text').innerText = `${targetPlayer.name} 的回合`;
+                $('bigscreen-modal').classList.add('active');
+            } else {
+                $('bigscreen-modal').classList.remove('active');
+            }
+
             if (currentRoom.state === 'lobby') {
                 let me = null;
                 if (isSpectator) {
@@ -1032,7 +1113,7 @@
                                     </div>
                                     <div style="display:flex; flex-direction:column; align-items:center; gap:5px; margin-top: auto;">
                                         <span class="player-status-text" style="color:${statusColor}; transform: scale(${p.ready ? 1.1 : 1});">${statusText}</span>
-                                        ${(isHost && p.id !== myId) ? `<button class="kick-btn" onclick="kickPlayer('${p.id}')">踢出</button>` : ''}
+                                        ${(isHost && p.id !== myId && !currentRoom.isBigScreen) ? `<button class="kick-btn" onclick="kickPlayer('${p.id}')">踢出</button>` : ''}
                                     </div>
                                 </div>
                             `;
@@ -1084,7 +1165,7 @@
                 };
 
                 if (needsResultView) {
-                    if (prevState === 'ingame' || prevState === 'qte' || (isSpectator && prevState === null && currentRoom.results)) {
+                    if (prevState === 'ingame' || prevState === 'switching_turn' || prevState === 'qte' || (isSpectator && prevState === null && currentRoom.results)) {
                         if (!window.isTransitioningToResult) {
                             window.isTransitioningToResult = true;
                             hideModal('qte-modal');
@@ -1127,7 +1208,7 @@
                     updateLobbyDOM();
                     if ($('lobby-view').className.indexOf('active') === -1 && !window.isTransitioningToResult) {
                         if (isSpectator && $('result-view').classList.contains('active')) {
-                            // 核心修复：观战玩家点击加入且失败时，停留在结算页面不强制跳转大厅
+                            // 保持在结算
                         } else {
                             switchView('lobby-view');
                             isFirstRound = true;
@@ -1135,7 +1216,7 @@
                     }
                 }
 
-            } else if (currentRoom.state === 'ingame') {
+            } else if (currentRoom.state === 'ingame' || currentRoom.state === 'switching_turn') {
                 if ($('game-view').className.indexOf('active') === -1) switchView('game-view');
 
                 $('game-room-id').innerText = currentRoom.id;
@@ -1154,10 +1235,10 @@
                 if (isMyTurn && !isSpectator) {
                     $('turn-indicator').classList.add('active');
                     $('turn-indicator').innerText = '轮到你了!';
-                    if (!wasMyTurn) {
+                    if (!wasMyTurn && currentRoom.state === 'ingame') {
                         playTurnSound();
                     }
-                    if (isFirstRound) {
+                    if (isFirstRound && currentRoom.state === 'ingame') {
                         $('guide-draw').classList.add('show');
                     }
                 } else {
@@ -1178,18 +1259,15 @@
                     const step = maxDisplay > 1 ? Math.min(10, (containerWidth - cardWidth) / (maxDisplay - 1)) : 0;
                     const startLeft = (containerWidth - (cardWidth + (maxDisplay - 1) * step)) / 2;
 
-                    // 计算需要被隐藏等待发牌动画到达的牌数
                     let animatingCount = 0;
                     if (window.animatingOpponentCards && window.animatingOpponentCards[p.id]) {
                         animatingCount = window.animatingOpponentCards[p.id];
                     }
                     
-                    // 利用真正该被显示出来的旧牌数作为边界判定
                     const oldHandCount = p.handCount - animatingCount;
 
                     for(let i=0; i<maxDisplay; i++) {
                         const isAnimating = i >= oldHandCount;
-                        // 注意这里使用内联样式强制 opacity 为 0 等待被飞行动画完成后点亮
                         const opacityStyle = isAnimating ? 'opacity: 0 !important;' : '';
                         handHtml += `<div class="gpc-card-back" style="left: ${startLeft + i * step}px; z-index: ${i}; ${opacityStyle}"></div>`;
                     }
@@ -1225,36 +1303,47 @@
                     $('discard-pile').style.boxShadow = 'none';
                 }
 
-                const handWidth = $('my-hand').clientWidth;
-                const cardWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
-                const availableSpace = handWidth - cardWidth;
-                
-                let step = cardWidth + 10; 
-                if (myHand.length > 1) {
-                    const neededSpace = (myHand.length - 1) * step;
-                    if (neededSpace > availableSpace) {
-                        step = availableSpace / (myHand.length - 1);
+                const isSwitching = currentRoom.isBigScreen && currentRoom.state === 'switching_turn';
+                if (isSwitching) {
+                    document.querySelector('.game-bottom').classList.add('hide-bottom');
+                } else {
+                    document.querySelector('.game-bottom').classList.remove('hide-bottom');
+                    
+                    const handWidth = $('my-hand').clientWidth;
+                    const cardWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
+                    const availableSpace = handWidth - cardWidth;
+                    
+                    let step = cardWidth + 10; 
+                    if (myHand.length > 1) {
+                        const neededSpace = (myHand.length - 1) * step;
+                        if (neededSpace > availableSpace) {
+                            step = availableSpace / (myHand.length - 1);
+                        }
                     }
-                }
-                
-                const totalWidth = (myHand.length - 1) * step + cardWidth;
-                let startLeft = (handWidth - totalWidth) / 2;
+                    
+                    const totalWidth = (myHand.length - 1) * step + cardWidth;
+                    let startLeft = (handWidth - totalWidth) / 2;
 
-                $('my-hand').innerHTML = myHand.map((c, i) => {
-                    const leftPos = startLeft + (i * step);
-                    const isAnimating = (i >= myHand.length - myDrawnCardsQueue.length);
-                    const style = `left: ${leftPos}px; z-index: ${i}; opacity: ${isAnimating ? 0 : 1};`;
-                    return `<div class="hand-card" style="${style}" onclick="tryPlayCard('${c.id}')">${getCardHTML(c)}</div>`;
-                }).join('');
+                    const qLen = drawnCardsQueue[myId] ? drawnCardsQueue[myId].length : 0;
+                    $('my-hand').innerHTML = myHand.map((c, i) => {
+                        const leftPos = startLeft + (i * step);
+                        const isAnimating = (i >= myHand.length - qLen);
+                        const style = `left: ${leftPos}px; z-index: ${i}; opacity: ${isAnimating ? 0 : 1};`;
+                        return `<div class="hand-card" style="${style}" onclick="tryPlayCard('${c.id}')">${getCardHTML(c)}</div>`;
+                    }).join('');
 
-                $('btn-skip').classList.remove('show');
-                $('btn-urge').classList.remove('show');
-                if (isMyTurn && !isSpectator) {
-                    if (hasDrawnThisTurn) {
-                        $('btn-skip').classList.add('show');
+                    $('btn-skip').classList.remove('show');
+                    $('btn-urge').classList.remove('show');
+                    
+                    if (currentRoom.state === 'ingame') {
+                        if (isMyTurn && !isSpectator) {
+                            if (hasDrawnThisTurn) {
+                                $('btn-skip').classList.add('show');
+                            }
+                        } else if (!isSpectator && !currentRoom.isBigScreen) {
+                            $('btn-urge').classList.add('show');
+                        }
                     }
-                } else if (!isSpectator) {
-                    $('btn-urge').classList.add('show');
                 }
             }
         }
@@ -1268,14 +1357,14 @@
         function kickPlayer(id) { sendWS('kick_player', { targetId: id }); }
         
         function drawCard() {
-            if (!isMyTurn || isSpectator) return;
+            if (!isMyTurn || isSpectator || currentRoom.state === 'switching_turn') return;
             sendWS('draw_card');
             $('guide-draw').classList.remove('show');
             isFirstRound = false;
         }
 
         function skipTurn() {
-            if (isSpectator) return;
+            if (isSpectator || currentRoom.state === 'switching_turn') return;
             sendWS('skip_turn');
             $('guide-draw').classList.remove('show');
             isFirstRound = false;
@@ -1452,7 +1541,7 @@
         }
 
         function tryPlayCard(cardId) {
-            if (!isMyTurn || isSpectator) return;
+            if (!isMyTurn || isSpectator || currentRoom.state === 'switching_turn') return;
             $('guide-draw').classList.remove('show');
             isFirstRound = false;
             const card = myHand.find(c => c.id === cardId);
@@ -1501,7 +1590,6 @@
         function returnLobby() {
             window.isTransitioningToResult = false;
             sendWS('return_lobby');
-            // 核心修复：观战者点击加入失败时不强制跳转到大厅
             if (!isSpectator) {
                 switchView('lobby-view');
             }
@@ -1549,7 +1637,6 @@
             const endScaleY = endRect.height / cardSize.height;
             innerEl.style.transform = `scale(${endScaleX}, ${endScaleY})`;
 
-            // 核心修改：将目标底牌显示的延迟设为 200ms 触发
             if (playerIdForReveal) {
                 setTimeout(() => {
                     if (window.animatingOpponentCards && window.animatingOpponentCards[playerIdForReveal] > 0) {
@@ -1604,8 +1691,12 @@
                     let cardHtml = `<div class="card card-back" style="width:100%;height:100%;"></div>`;
                     let currentEndRect = endRect;
 
-                    if (isMe && myDrawnCardsQueue.length > 0) {
-                        const drawnCard = myDrawnCardsQueue.shift();
+                    let drawnCard = null;
+                    if (drawnCardsQueue[playerId] && drawnCardsQueue[playerId].length > 0) {
+                        drawnCard = drawnCardsQueue[playerId].shift();
+                    }
+
+                    if (isMe && drawnCard) {
                         cardHtml = getCardHTML(drawnCard);
 
                         const handRect = $('my-hand').getBoundingClientRect();

@@ -73,7 +73,7 @@ function generateRoomId() {
 
 const BOT_NAMES = [
     "清梦", "令", "数字", "亦丹", 
-    "游离电子", "羽然永远开心", "月色", "一笑了之？", 
+    "游离电子", "月色", "一笑了之？", 
     "白梦世界", "HY是个Fvv", "AAAAA区歪", "后藤一里", 
     "Faze", "6657", "Falcons", "Tyloo", 
     "Vitality", "Spirit", "Liquid", "MOUZ", 
@@ -128,7 +128,9 @@ function broadcastRoom(roomId) {
     const stateToSend = {
         id: room.id,
         hidden: room.hidden,
+        isBigScreen: room.isBigScreen,
         state: room.state,
+        switchTargetIndex: room.switchTargetIndex,
         maxPlayers: room.maxPlayers,
         players: room.players.map(p => ({
             id: p.id,
@@ -155,13 +157,34 @@ function broadcastRoom(roomId) {
         results: room.results
     };
 
+    const wsSet = new Set();
     room.players.forEach(p => {
-        if (!p.isBot && p.ws && p.ws.readyState === 1) {
+        if (!p.isBot && p.ws && p.ws.readyState === 1 && !wsSet.has(p.ws)) {
+            wsSet.add(p.ws);
+            
+            let targetId = p.id;
+            let targetHand = p.hand;
+            
+            if (room.isBigScreen) {
+                if (room.state === 'ingame') {
+                    // 游戏中实时将大屏视角切换至出牌玩家
+                    targetId = room.players[room.turnIndex].id;
+                    targetHand = room.players[room.turnIndex].hand;
+                } else if (room.state === 'switching_turn') {
+                    // 切换期间黑屏隐藏牌局
+                    targetId = null;
+                    targetHand = [];
+                } else {
+                    targetId = room.players[0].id;
+                    targetHand = room.players[0].hand;
+                }
+            }
+
             p.ws.send(JSON.stringify({
                 type: 'room_state',
                 room: stateToSend,
-                myHand: p.hand,
-                myId: p.id,
+                myHand: targetHand,
+                myId: targetId,
                 hasDrawnThisTurn: room.hasDrawnThisTurn
             }));
         }
@@ -169,7 +192,8 @@ function broadcastRoom(roomId) {
 
     if (room.spectators) {
         room.spectators.forEach(s => {
-            if (s.ws && s.ws.readyState === 1) {
+            if (s.ws && s.ws.readyState === 1 && !wsSet.has(s.ws)) {
+                wsSet.add(s.ws);
                 const targetPlayer = room.players.find(p => p.id === s.targetId);
                 s.ws.send(JSON.stringify({
                     type: 'room_state',
@@ -195,14 +219,17 @@ function broadcastChat(roomId, senderName, message, isSpectator = false) {
     const room = rooms.get(roomId);
     if (!room) return;
     const chatMsg = JSON.stringify({ type: 'chat', sender: senderName, message, isSpectator });
+    const wsSet = new Set();
     room.players.forEach(p => {
-        if (!p.isBot && p.ws && p.ws.readyState === 1) {
+        if (!p.isBot && p.ws && p.ws.readyState === 1 && !wsSet.has(p.ws)) {
+            wsSet.add(p.ws);
             p.ws.send(chatMsg);
         }
     });
     if (room.spectators) {
         room.spectators.forEach(s => {
-            if (s.ws && s.ws.readyState === 1) {
+            if (s.ws && s.ws.readyState === 1 && !wsSet.has(s.ws)) {
+                wsSet.add(s.ws);
                 s.ws.send(chatMsg);
             }
         });
@@ -214,14 +241,17 @@ function broadcastEvent(roomId, eventType, data) {
     const room = rooms.get(roomId);
     if (!room) return;
     const msg = JSON.stringify({ type: eventType, ...data });
+    const wsSet = new Set();
     room.players.forEach(p => {
-        if (!p.isBot && p.ws && p.ws.readyState === 1) {
+        if (!p.isBot && p.ws && p.ws.readyState === 1 && !wsSet.has(p.ws)) {
+            wsSet.add(p.ws);
             p.ws.send(msg);
         }
     });
     if (room.spectators) {
         room.spectators.forEach(s => {
-            if (s.ws && s.ws.readyState === 1) {
+            if (s.ws && s.ws.readyState === 1 && !wsSet.has(s.ws)) {
+                wsSet.add(s.ws);
                 s.ws.send(msg);
             }
         });
@@ -238,10 +268,28 @@ function getNextTurn(room, step = 1) {
 }
 
 function advanceTurn(room, step = 1) {
-    room.turnIndex = getNextTurn(room, step);
-    room.hasDrawnThisTurn = false;
-    broadcastRoom(room.id);
-    checkAITurn(room);
+    const nextIndex = getNextTurn(room, step);
+    
+    if (room.isBigScreen && room.state === 'ingame') {
+        room.state = 'switching_turn';
+        room.switchTargetIndex = nextIndex;
+        broadcastRoom(room.id);
+        
+        setTimeout(() => {
+            // 确保没有中途触发其他阶段 (例如游戏结束)
+            if (room.state === 'switching_turn') {
+                room.state = 'ingame';
+                room.turnIndex = nextIndex;
+                room.hasDrawnThisTurn = false;
+                broadcastRoom(room.id);
+            }
+        }, 800); // 大屏模式留出 0.8 秒的平滑切换动画时间 (从1500ms缩短)
+    } else {
+        room.turnIndex = nextIndex;
+        room.hasDrawnThisTurn = false;
+        broadcastRoom(room.id);
+        checkAITurn(room);
+    }
 }
 
 function drawCards(room, count) {
@@ -282,9 +330,6 @@ function triggerQTE(room, player) {
     // Bots randomly try to catch
     room.players.forEach(p => {
         if (p.isBot) {
-            // 给每个机器人一个独立的随机反应时间
-            // 目标玩家(0手牌的机器人)应该比其他抓人的机器人稍微快一点点(比如2秒~4秒)
-            // 抓人的机器人反应稍微慢一点点(比如2.5秒~5秒)，这样0手牌的机器人才有机会赢
             let delay;
             if (p.id === room.qteTargetPlayerId) {
                 delay = 2000 + Math.random() * 2000; 
@@ -335,12 +380,12 @@ function endGame(room) {
     room.state = 'lobby';
     room.players.forEach(p => {
         p.hand = [];
-        if (!p.isBot) {
+        if (!p.isBot && !room.isBigScreen) {
             p.ready = false;
             p.hasSeenResults = false;
         } else {
-            p.ready = true;
-            p.hasSeenResults = true;
+            p.ready = true; // 大屏模式或机器人自动准备
+            p.hasSeenResults = room.isBigScreen ? false : true;
         }
     });
     if (room.spectators) {
@@ -359,7 +404,7 @@ function checkAITurn(room) {
 
     if (room.aiTimer) clearTimeout(room.aiTimer);
 
-    const delay = 1000 + Math.random() * 1000; // AI出牌变快，在1秒到2秒之间
+    const delay = 1000 + Math.random() * 1000;
     room.aiTimer = setTimeout(() => {
         executeAITurn(room, currentPlayer);
     }, delay);
@@ -376,7 +421,6 @@ function executeAITurn(room, bot) {
     let colorToDeclare = null;
 
     if (!room.hasDrawnThisTurn) {
-        // Try to find a playable card
         const playableCards = bot.hand.filter(c => canPlayCard(c, topCard, currentColor));
         if (playableCards.length > 0) {
             cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
@@ -389,7 +433,6 @@ function executeAITurn(room, bot) {
             }
             playCardLogic(room, bot, cardToPlay.id, colorToDeclare);
         } else {
-            // Draw card
             log(room.id, 'INFO', `AI(${bot.name})没有可出的牌，抽牌`);
             const drawnCards = drawCards(room, 1);
             if (drawnCards.length > 0) {
@@ -397,16 +440,13 @@ function executeAITurn(room, bot) {
                 room.hasDrawnThisTurn = true;
                 broadcastEvent(room.id, 'draw_card', { playerId: bot.id, count: 1 });
                 broadcastRoom(room.id);
-                // Check if can play the drawn card immediately
                 setTimeout(() => { executeAITurn(room, bot); }, 500);
             } else {
-                // Deck empty, skip
                 log(room.id, 'INFO', `AI(${bot.name})无牌可抽，跳过`);
                 advanceTurn(room, 1);
             }
         }
     } else {
-        // Has drawn, try to play the drawn card, else skip
         const lastDrawn = bot.hand[bot.hand.length - 1];
         if (canPlayCard(lastDrawn, topCard, currentColor)) {
             if (lastDrawn.color === 'black') {
@@ -428,20 +468,16 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
     let card = player.hand[cardIndex];
 
     const topCard = room.discardPile[room.discardPile.length - 1];
-    
-    // Check if the card is playable normally
     const isPlayable = canPlayCard(card, topCard, room.currentColor);
 
     if (isCheat && !player.isBot) {
         if (!isPlayable) {
             log(room.id, 'INFO', `[作弊] 玩家(${player.name})打出不合法牌，强行要求变色为 +4 牌`);
-            // Tell the client to show the color picker because they are cheating with an unplayable card
             if (player.ws && player.ws.readyState === 1) {
                 player.ws.send(JSON.stringify({ type: 'cheat_need_color', cardId: card.id }));
             }
             return;
         }
-        // If it IS playable, just proceed to play it normally.
     } else {
         if (!isPlayable) {
             log(room.id, 'WARN', `玩家(${player.name})出牌不合法`);
@@ -449,7 +485,6 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
         }
     }
 
-    // Normal play or finalized cheat play proceeds here
     player.hand.splice(cardIndex, 1);
     room.discardPile.push(card);
     
@@ -464,13 +499,19 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
     log(room.id, 'INFO', `玩家(${player.name})打出了 ${colorMsg} 的 ${card.type}`);
     room.animating = true;
     broadcastEvent(room.id, 'play_card', { playerId: player.id, card, declaredColor: room.currentColor });
-    broadcastRoom(room.id); // Send updated hand size but don't advance turn yet
+    broadcastRoom(room.id); 
 
     setTimeout(() => {
         room.animating = false;
 
         if (player.hand.length === 0) {
-            triggerQTE(room, player);
+            if (room.isBigScreen) {
+                log(room.id, 'INFO', `大屏模式，玩家(${player.name})手牌为0，直接获胜`);
+                broadcastEvent(room.id, 'qte_win', { winner: player.name });
+                endGame(room);
+            } else {
+                triggerQTE(room, player);
+            }
             broadcastRoom(room.id);
             return;
         }
@@ -495,7 +536,7 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
             nextPlayer.hand.push(...penalty);
             log(room.id, 'INFO', `玩家(${nextPlayer.name})被罚抽2张`);
             if (!nextPlayer.isBot && nextPlayer.ws && nextPlayer.ws.readyState === 1) {
-                nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty }));
+                nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty, playerId: nextPlayer.id }));
             }
             broadcastEvent(room.id, 'draw_card', { playerId: nextPlayer.id, count: 2, isPenalty: true });
             skipCount = 2;
@@ -506,14 +547,14 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
             nextPlayer.hand.push(...penalty);
             log(room.id, 'INFO', `玩家(${nextPlayer.name})被罚抽4张`);
             if (!nextPlayer.isBot && nextPlayer.ws && nextPlayer.ws.readyState === 1) {
-                nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty }));
+                nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty, playerId: nextPlayer.id }));
             }
             broadcastEvent(room.id, 'draw_card', { playerId: nextPlayer.id, count: 4, isPenalty: true });
             skipCount = 2;
         }
 
         advanceTurn(room, skipCount);
-    }, 500); // Wait 500ms for play card animation to finish
+    }, 500); 
 }
 
 function handleDisconnect(ws) {
@@ -526,14 +567,23 @@ function handleDisconnect(ws) {
 
     const room = rooms.get(clientData.roomId);
     
-    // We only clear the roomId so the client is effectively "kicked" to home screen
-    // but the websocket remains open.
     if (clients.has(ws)) {
         clients.get(ws).roomId = null;
         clients.get(ws).isSpectator = false;
     }
 
     if (!room) return;
+
+    if (room.isBigScreen) {
+        log(room.id, 'INFO', '大屏模式房主断开，防僵尸机制启动，房间自动解散');
+        if (room.spectators) {
+            room.spectators.forEach(s => {
+                if (s.ws) sendError(s.ws, '房主已离开，房间自动解散');
+            });
+        }
+        rooms.delete(room.id);
+        return;
+    }
 
     if (clientData.isSpectator) {
         const specIndex = room.spectators.findIndex(s => s.id === clientData.id);
@@ -574,7 +624,6 @@ function handleDisconnect(ws) {
             broadcastRoom(room.id);
         }
     } else {
-        // In game, replace with bot
         log(room.id, 'INFO', `游戏进行中，玩家(${player.name})由AI接管`);
         player.isBot = true;
         if (room.players.every(p => p.isBot)) {
@@ -609,7 +658,6 @@ const pingInterval = setInterval(() => {
         ws.ping();
     });
 
-    // 房间垃圾回收 (GC): 清理没有真人玩家的冗余房间
     for (const [roomId, room] of rooms.entries()) {
         const humanCount = room.players.filter(p => !p.isBot).length;
         if (humanCount === 0) {
@@ -642,7 +690,6 @@ wss.on('connection', (ws, req) => {
     const rateLimitInterval = setInterval(() => { messageCount = 0; }, 1000);
 
     ws.on('message', (message) => {
-        // 限制每个连接每秒最多发送 40 条消息，防止恶意发包消耗服务器 CPU
         messageCount++;
         if (messageCount > 40) {
             log('SYS', 'WARN', `连接被断开：消息发送频率过高 (${req.socket.remoteAddress})`);
@@ -652,11 +699,11 @@ wss.on('connection', (ws, req) => {
 
         try {
             const data = JSON.parse(message);
-            if (!data || typeof data.type !== 'string') return; // Type safety for event type
+            if (!data || typeof data.type !== 'string') return;
             
             const clientData = clients.get(ws) || {};
             if (clientData.id) {
-                updateClientActivity(ws); // reset AFK timer on any valid incoming message
+                updateClientActivity(ws);
             }
             
             if (data.type === 'ping') {
@@ -681,11 +728,18 @@ wss.on('connection', (ws, req) => {
             }
 
             if (data.type === 'create_room') {
-                let playerName = (data.name || '神秘玩家').trim().substring(0, 15);
-                if (!playerName) playerName = '神秘玩家';
-                
+                let isBigScreen = !!data.isBigScreen;
                 let maxPlayers = parseInt(data.maxPlayers, 10);
                 let bots = parseInt(data.bots, 10);
+                
+                // 大屏模式后端强制校验
+                if (isBigScreen) {
+                    bots = 0;
+                    data.hidden = true;
+                }
+                
+                let playerName = (data.name || '神秘玩家').trim().substring(0, 15);
+                if (!playerName) playerName = '神秘玩家';
                 
                 if (isNaN(maxPlayers) || maxPlayers < 2 || maxPlayers > 12) {
                     sendError(ws, '房间总人数不合法 (2-12)');
@@ -700,11 +754,16 @@ wss.on('connection', (ws, req) => {
                     return;
                 }
 
+                if (isBigScreen) {
+                    playerName = "玩家1"; // 大屏模式强制顺序命名
+                }
+
                 const roomId = generateRoomId();
                 const clientId = generateId();
                 const room = {
                     id: roomId,
                     hidden: !!data.hidden,
+                    isBigScreen: isBigScreen,
                     maxPlayers: maxPlayers,
                     state: 'lobby',
                     players: [{
@@ -713,7 +772,7 @@ wss.on('connection', (ws, req) => {
                         name: playerName,
                         isHost: true,
                         isBot: false,
-                        ready: false,
+                        ready: isBigScreen ? true : false,
                         hasSeenResults: true,
                         hand: []
                     }],
@@ -726,23 +785,39 @@ wss.on('connection', (ws, req) => {
                     aiTimer: null
                 };
 
-                for (let i = 0; i < bots; i++) {
-                    room.players.push({
-                        id: generateId(),
-                        ws: null,
-                        name: getRandomBotName(),
-                        isHost: false,
-                        isBot: true,
-                        ready: true,
-                        hasSeenResults: true,
-                        hand: []
-                    });
+                if (isBigScreen) {
+                    // 大屏模式生成剩余的本地伪玩家，关联同一个 ws
+                    for (let i = 1; i < maxPlayers; i++) {
+                        room.players.push({
+                            id: generateId(),
+                            ws: ws,
+                            name: `玩家${i + 1}`,
+                            isHost: false,
+                            isBot: false, // 伪玩家属于真人操控
+                            ready: true,
+                            hasSeenResults: true,
+                            hand: []
+                        });
+                    }
+                } else {
+                    for (let i = 0; i < bots; i++) {
+                        room.players.push({
+                            id: generateId(),
+                            ws: null,
+                            name: getRandomBotName(),
+                            isHost: false,
+                            isBot: true,
+                            ready: true,
+                            hasSeenResults: true,
+                            hand: []
+                        });
+                    }
                 }
 
                 rooms.set(roomId, room);
                 clients.set(ws, { id: clientId, roomId, name: playerName });
-                updateClientActivity(ws); // Start AFK tracking
-                log(roomId, 'INFO', `房间创建成功，房主: ${playerName}，总人数限制: ${maxPlayers}，AI数: ${bots}`);
+                updateClientActivity(ws);
+                log(roomId, 'INFO', `房间创建成功，房主: ${playerName}，大屏: ${isBigScreen ? '是' : '否'}，总人数限制: ${maxPlayers}，AI数: ${bots}`);
                 broadcastRoom(roomId);
             }
             else if (data.type === 'join_room') {
@@ -761,15 +836,19 @@ wss.on('connection', (ws, req) => {
                     return;
                 }
 
+                if (room.isBigScreen) {
+                    sendError(ws, '此房间为大屏模式，无法通过网络加入');
+                    return;
+                }
+
                 const clientId = generateId();
 
                 if (room.state !== 'lobby') {
-                    // Join as spectator
                     room.spectators.push({
                         id: clientId,
                         ws,
                         name: playerName,
-                        targetId: room.players[0].id, // Default target
+                        targetId: room.players[0].id,
                         hasSeenResults: true
                     });
                     clients.set(ws, { id: clientId, roomId: room.id, name: playerName, isSpectator: true });
@@ -796,7 +875,7 @@ wss.on('connection', (ws, req) => {
                 });
 
                 clients.set(ws, { id: clientId, roomId: room.id, name: playerName });
-                updateClientActivity(ws); // Start AFK tracking
+                updateClientActivity(ws);
                 log(room.id, 'INFO', `玩家(${playerName})加入房间`);
                 broadcastRoom(room.id);
             }
@@ -820,7 +899,6 @@ wss.on('connection', (ws, req) => {
                         sendError(target.ws, '你已被房主踢出房间');
                         target.ws.close();
                     } else if (target.isBot) {
-                        // Kick bot out of lobby
                         room.players.splice(targetIdx, 1);
                         broadcastRoom(room.id);
                     }
@@ -860,16 +938,14 @@ wss.on('connection', (ws, req) => {
                 room.direction = 1;
                 room.hasDrawnThisTurn = false;
 
-                // Deal 7 cards to each
                 room.players.forEach(p => {
                     const dealt = drawCards(room, 7);
                     p.hand = dealt;
                     if (!p.isBot && p.ws && p.ws.readyState === 1) {
-                        p.ws.send(JSON.stringify({ type: 'draw_card_result', cards: dealt }));
+                        p.ws.send(JSON.stringify({ type: 'draw_card_result', cards: dealt, playerId: p.id }));
                     }
                 });
 
-                // First card
                 let firstCard;
                 do {
                     firstCard = drawCards(room, 1)[0];
@@ -881,21 +957,17 @@ wss.on('connection', (ws, req) => {
                 } while (!firstCard);
 
                 room.discardPile.push(firstCard);
-                room.currentColor = firstCard.color === 'black' ? 'red' : firstCard.color; // If wild, default to red
+                room.currentColor = firstCard.color === 'black' ? 'red' : firstCard.color; 
                 
                 room.turnIndex = Math.floor(Math.random() * room.players.length);
                 log(room.id, 'INFO', `首牌: ${firstCard.color} ${firstCard.type}，起始玩家: ${room.players[room.turnIndex].name}`);
 
-                // Broadcast room state
                 broadcastRoom(room.id);
                 
-                // Broadcast dealing animation to all
                 room.players.forEach(p => {
                     broadcastEvent(room.id, 'draw_card', { playerId: p.id, count: 7 });
                 });
 
-                // 首发牌动画大概需要 7 * 200ms = 1400ms，外加 400ms 的飞行时间。总计约 1.8 秒。
-                // 我们增加 2 秒的延迟，让AI在首轮发牌动画结束后再出牌。
                 setTimeout(() => {
                     checkAITurn(room);
                 }, 2000);
@@ -905,9 +977,14 @@ wss.on('connection', (ws, req) => {
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame') return;
                 const player = room.players[room.turnIndex];
-                if (player.id !== clientData.id) {
-                    sendError(ws, '还没轮到你');
-                    return;
+                
+                if (room.isBigScreen) {
+                    if (player.ws !== ws) return; // 校验大屏房主权限
+                } else {
+                    if (player.id !== clientData.id) {
+                        sendError(ws, '还没轮到你');
+                        return;
+                    }
                 }
                 playCardLogic(room, player, data.cardId, data.declaredColor, !!data.cheat);
             }
@@ -916,12 +993,16 @@ wss.on('connection', (ws, req) => {
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame') return;
                 const player = room.players[room.turnIndex];
-                if (player.id !== clientData.id) return;
+                
+                if (room.isBigScreen) {
+                    if (player.ws !== ws) return;
+                } else {
+                    if (player.id !== clientData.id) return;
+                }
                 
                 const validColors = ['red', 'yellow', 'blue', 'green'];
                 if (!validColors.includes(data.declaredColor)) return;
                 
-                // Directly mutate the card into a +4 black card
                 const cardIndex = player.hand.findIndex(c => c.id === data.cardId);
                 if (cardIndex !== -1) {
                     let card = player.hand[cardIndex];
@@ -929,7 +1010,6 @@ wss.on('connection', (ws, req) => {
                     card.color = 'black';
                     card.type = '+4';
                     
-                    // Now process it normally without cheat flag since it's already a valid +4
                     playCardLogic(room, player, data.cardId, data.declaredColor, false);
                 }
             }
@@ -937,7 +1017,13 @@ wss.on('connection', (ws, req) => {
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame' || room.animating) return;
                 const player = room.players[room.turnIndex];
-                if (player.id !== clientData.id) return;
+                
+                if (room.isBigScreen) {
+                    if (player.ws !== ws) return;
+                } else {
+                    if (player.id !== clientData.id) return;
+                }
+                
                 if (room.hasDrawnThisTurn) {
                     sendError(ws, '本回合已抽过牌');
                     return;
@@ -948,12 +1034,10 @@ wss.on('connection', (ws, req) => {
                     player.hand.push(...drawnCards);
                     room.hasDrawnThisTurn = true;
                     log(room.id, 'INFO', `玩家(${player.name})抽了一张牌`);
-                    // We must send draw_card_result BEFORE room_state and draw_card
                     if (ws && ws.readyState === 1) {
-                        ws.send(JSON.stringify({ type: 'draw_card_result', cards: drawnCards }));
+                        ws.send(JSON.stringify({ type: 'draw_card_result', cards: drawnCards, playerId: player.id }));
                     }
-                    broadcastRoom(room.id); // Sends new room_state with updated hand
-                    // Now broadcast the animation trigger
+                    broadcastRoom(room.id); 
                     broadcastEvent(room.id, 'draw_card', { playerId: player.id, count: 1 });
                 } else {
                     sendError(ws, '牌堆已空，请点击跳过');
@@ -963,7 +1047,13 @@ wss.on('connection', (ws, req) => {
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame') return;
                 const player = room.players[room.turnIndex];
-                if (player.id !== clientData.id) return;
+                
+                if (room.isBigScreen) {
+                    if (player.ws !== ws) return;
+                } else {
+                    if (player.id !== clientData.id) return;
+                }
+                
                 if (!room.hasDrawnThisTurn) {
                     sendError(ws, '必须先抽牌才能跳过');
                     return;
@@ -973,7 +1063,7 @@ wss.on('connection', (ws, req) => {
             }
             else if (data.type === 'urge') {
                 const room = rooms.get(clientData.roomId);
-                if (!room || room.state !== 'ingame') return;
+                if (!room || room.state !== 'ingame' || room.isBigScreen) return; // 大屏模式禁用催促
                 const currentPlayer = room.players[room.turnIndex];
                 if (currentPlayer.id === clientData.id) return;
 
@@ -992,7 +1082,7 @@ wss.on('connection', (ws, req) => {
             else if (data.type === 'qte_submit') {
                 if (typeof data.word !== 'string') return;
                 const room = rooms.get(clientData.roomId);
-                if (!room) return;
+                if (!room || room.isBigScreen) return; // 大屏模式禁用QTE抢答
                 const player = room.players.find(p => p.id === clientData.id);
                 if (player) {
                     handleQTESubmit(room, player, data.word, Date.now());
@@ -1005,23 +1095,21 @@ wss.on('connection', (ws, req) => {
                 const spec = room.spectators.find(s => s.id === clientData.id);
                 if (spec && room.players.find(p => p.id === data.targetId)) {
                     spec.targetId = data.targetId;
-                    broadcastRoom(room.id); // Re-broadcast to update their specific view
+                    broadcastRoom(room.id); 
                 }
             }
             else if (data.type === 'chat') {
                 if (typeof data.message !== 'string') return;
-                let safeMsg = data.message.trim().substring(0, 200); // truncate super long msgs
+                let safeMsg = data.message.trim().substring(0, 200); 
                 if (!safeMsg) return;
                 const room = rooms.get(clientData.roomId);
-                if (!room) return;
+                if (!room || room.isBigScreen) return; // 大屏禁用聊天
                 broadcastChat(room.id, clientData.name, safeMsg, clientData.isSpectator);
             }
             else if (data.type === 'cheat_activated') {
                 const room = rooms.get(clientData.roomId);
                 let playerName = (clientData.name || data.name || '未知玩家').trim().substring(0, 15);
                 if (!playerName) playerName = '未知玩家';
-                
-                // Get IP address from WebSocket
                 
                 if (room) {
                     log(room.id, 'WARN', `玩家(${playerName}) 激活了全局作弊模式`);
@@ -1035,7 +1123,6 @@ wss.on('connection', (ws, req) => {
 
                 if (clientData.isSpectator) {
                     if (room.players.length < room.maxPlayers) {
-                        // Upgrade to player
                         const specIndex = room.spectators.findIndex(s => s.id === clientData.id);
                         if (specIndex !== -1) {
                             const spec = room.spectators[specIndex];
@@ -1055,7 +1142,6 @@ wss.on('connection', (ws, req) => {
                             broadcastRoom(room.id);
                         }
                     } else {
-                        // Still spectator, but wants to return to lobby
                         const spec = room.spectators.find(s => s.id === clientData.id);
                         if (spec) {
                             spec.hasSeenResults = true;
@@ -1069,6 +1155,10 @@ wss.on('connection', (ws, req) => {
                 const player = room.players.find(p => p.id === clientData.id);
                 if (player) {
                     player.hasSeenResults = true;
+                    if (room.isBigScreen) {
+                        // 大屏模式房主一旦点击继续，全部本地虚拟玩家视为已阅读
+                        room.players.forEach(p => p.hasSeenResults = true);
+                    }
                     broadcastRoom(room.id);
                 }
             }
@@ -1080,11 +1170,10 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
         clearInterval(rateLimitInterval);
         handleDisconnect(ws);
-        clients.delete(ws); // Fully delete when WS actually closes
+        clients.delete(ws); 
     });
 });
 
-// Provide wildcard route for direct join links
 app.get('/:roomId', (req, res) => {
     const roomId = req.params.roomId;
     if (/^\d{3}$/.test(roomId)) {
