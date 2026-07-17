@@ -45,10 +45,39 @@
 
 ## 🚀 部署与运行
 
-### 1. 环境准备
-确保您的设备上已安装 Node.js 环境。
+需要 Node.js 环境。
 
-### 2. 安装依赖
-在项目根目录下，执行以下命令安装必要的 npm 包：
 ```bash
+git clone https://github.com/HY916-cn/uno.git
+cd uno
 npm install
+npm start
+```
+
+默认监听 `3000` 端口（写死在 `server.js` 里，改端口直接改那行），访问 [http://localhost:3000](http://localhost:3000)。
+
+### 反向代理
+
+WebSocket 走的是 `/ws` 路径，nginx 记得加 `Upgrade`/`Connection` 头：
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+}
+```
+
+常驻用 PM2：
+
+```bash
+npm install -g pm2
+pm2 start server.js --name uno
+pm2 save
+```
+
+## License
+
+MIT
