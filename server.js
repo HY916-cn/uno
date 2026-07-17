@@ -71,6 +71,22 @@ function generateRoomId() {
     return id;
 }
 
+function generateQteWord() {
+    return String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+}
+
+// QTE 弹窗需要在所有客户端"同一时刻"出现，否则延迟低的玩家天然占便宜；
+// 给一个小缓冲窗口，客户端用 serverTimeOffset 换算成本地时间后再展示，服务端也据此拒绝窗口结束前的提交
+const QTE_REVEAL_BUFFER_MS = 350;
+
+// 打字模式下提前把下一轮验证码广播出去，方便玩家提前记住，
+// 这样 QTE 真正触发时考验的是反应速度而不是临场读数字/打字的速度
+function previewNextQteWord(room) {
+    if (room.qteMode !== 'type') return;
+    room.qteWord = generateQteWord();
+    broadcastEvent(room.id, 'qte_preview', { qteWord: room.qteWord });
+}
+
 const BOT_NAMES = [
     "清梦", "令", "数字", "亦丹", 
     "游离电子", "月色", "一笑了之？", 
@@ -129,6 +145,7 @@ function broadcastRoom(roomId) {
         id: room.id,
         hidden: room.hidden,
         isBigScreen: room.isBigScreen,
+        qteMode: room.qteMode,
         state: room.state,
         switchTargetIndex: room.switchTargetIndex,
         maxPlayers: room.maxPlayers,
@@ -321,11 +338,16 @@ function canPlayCard(card, topCard, currentColor) {
 function triggerQTE(room, player) {
     room.state = 'qte';
     room.qteTargetPlayerId = player.id;
-    room.qteWord = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+    // 打字模式下验证码已经在游戏开局/上一轮抓捕后提前预告过了，这里沿用同一个词；
+    // 按钮模式没有预告，此时才现场生成
+    if (room.qteMode !== 'type' || !room.qteWord) {
+        room.qteWord = generateQteWord();
+    }
     room.qteStartTime = Date.now();
+    room.qteRevealAt = Date.now() + QTE_REVEAL_BUFFER_MS;
     log(room.id, 'INFO', `玩家(${player.name})手牌为0，触发QTE抢答! 目标词: UNO-${room.qteWord}`);
-    
-    broadcastEvent(room.id, 'qte_start', { qteWord: room.qteWord });
+
+    broadcastEvent(room.id, 'qte_start', { qteWord: room.qteWord, qteMode: room.qteMode, revealAt: room.qteRevealAt });
 
     // Bots randomly try to catch
     room.players.forEach(p => {
@@ -348,13 +370,15 @@ function triggerQTE(room, player) {
 
 function handleQTESubmit(room, player, word, clientTime) {
     if (room.state !== 'qte') return;
+    if (room.qteRevealAt && Date.now() < room.qteRevealAt) return; // 同步展示窗口结束前的提交一律无效，防止篡改客户端抢跑
     const targetWord = `UNO-${room.qteWord}`;
     if (word !== targetWord) return;
 
     log(room.id, 'INFO', `玩家(${player.name})提交了QTE`);
     
     const targetPlayer = room.players.find(p => p.id === room.qteTargetPlayerId);
-    
+    if (!targetPlayer) return;
+
     if (player.id === targetPlayer.id) {
         // Target player wins
         log(room.id, 'INFO', `玩家(${player.name})QTE成功，游戏结束，获胜!`);
@@ -367,7 +391,12 @@ function handleQTESubmit(room, player, word, clientTime) {
         targetPlayer.hand.push(...penalty);
         room.state = 'ingame';
         broadcastEvent(room.id, 'qte_end', { caughtBy: player.name });
-        advanceTurn(room, 1);
+        previewNextQteWord(room);
+
+        const pendingCard = room.qtePendingCard;
+        room.qtePendingCard = null;
+        const skipCount = pendingCard ? applyCardEffect(room, pendingCard) : 1;
+        advanceTurn(room, skipCount);
     }
 }
 
@@ -406,13 +435,57 @@ function checkAITurn(room) {
 
     const delay = 1000 + Math.random() * 1000;
     room.aiTimer = setTimeout(() => {
+        room.aiTimer = null; // 定时器已触发，清空后 urge 才能正确判断"AI是否仍在思考"
         executeAITurn(room, currentPlayer);
     }, delay);
+}
+
+const COLORS = ['red', 'yellow', 'blue', 'green'];
+
+// 选出手牌中持有最多的颜色作为变色声明，最大化后续出牌几率（保留一手好牌而非纯随机）
+function pickAIColor(hand, excludeCardId) {
+    const counts = { red: 0, yellow: 0, blue: 0, green: 0 };
+    for (const c of hand) {
+        if (c.id === excludeCardId) continue;
+        if (counts[c.color] !== undefined) counts[c.color]++;
+    }
+    let best = COLORS[Math.floor(Math.random() * COLORS.length)];
+    let bestCount = -1;
+    for (const color of COLORS) {
+        if (counts[color] > bestCount) {
+            bestCount = counts[color];
+            best = color;
+        }
+    }
+    return best;
+}
+
+// 出牌优先级：下家快赢时优先攻击性卡牌；否则优先消耗普通卡牌，将万能/+4留到没有其他选择时再用
+function pickAICard(room, bot, playableCards) {
+    const nextPlayer = room.players[getNextTurn(room, 1)];
+    const dangerMode = !!nextPlayer && nextPlayer.id !== bot.id && nextPlayer.hand.length <= 2;
+
+    const rank = (c) => {
+        if (dangerMode) {
+            if (c.type === '+4') return 0;
+            if (c.type === '+2') return 1;
+            if (c.type === 'skip' || c.type === 'reverse') return 2;
+        }
+        if (c.color !== 'black') return 3;
+        if (c.type === '+4') return 4;
+        return 5;
+    };
+
+    const sorted = [...playableCards].sort((a, b) => rank(a) - rank(b));
+    const bestRank = rank(sorted[0]);
+    const topChoices = sorted.filter(c => rank(c) === bestRank);
+    return topChoices[Math.floor(Math.random() * topChoices.length)];
 }
 
 function executeAITurn(room, bot) {
     if (room.state !== 'ingame') return;
     if (room.players[room.turnIndex].id !== bot.id) return;
+    if (room.animating) return; // 上一次出牌的结算动画还没走完，避免被 urge 等重入触发二次判定
 
     const topCard = room.discardPile[room.discardPile.length - 1];
     const currentColor = room.currentColor;
@@ -423,13 +496,12 @@ function executeAITurn(room, bot) {
     if (!room.hasDrawnThisTurn) {
         const playableCards = bot.hand.filter(c => canPlayCard(c, topCard, currentColor));
         if (playableCards.length > 0) {
-            cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
+            cardToPlay = pickAICard(room, bot, playableCards);
         }
-        
+
         if (cardToPlay) {
             if (cardToPlay.color === 'black') {
-                const colors = ['red', 'yellow', 'blue', 'green'];
-                colorToDeclare = colors[Math.floor(Math.random() * colors.length)];
+                colorToDeclare = pickAIColor(bot.hand, cardToPlay.id);
             }
             playCardLogic(room, bot, cardToPlay.id, colorToDeclare);
         } else {
@@ -450,8 +522,7 @@ function executeAITurn(room, bot) {
         const lastDrawn = bot.hand[bot.hand.length - 1];
         if (canPlayCard(lastDrawn, topCard, currentColor)) {
             if (lastDrawn.color === 'black') {
-                const colors = ['red', 'yellow', 'blue', 'green'];
-                colorToDeclare = colors[Math.floor(Math.random() * colors.length)];
+                colorToDeclare = pickAIColor(bot.hand, lastDrawn.id);
             }
             playCardLogic(room, bot, lastDrawn.id, colorToDeclare);
         } else {
@@ -459,6 +530,39 @@ function executeAITurn(room, bot) {
             advanceTurn(room, 1);
         }
     }
+}
+
+// 结算一张牌的功能效果（跳过/反转/+2/+4），返回下一回合应跳过的步数
+// 单独抽出来是因为 QTE 被抓时也要补算清空手牌的那张功能牌效果，而不能直接丢弃
+function applyCardEffect(room, card) {
+    let skipCount = 1;
+
+    if (card.type === 'skip') {
+        skipCount = 2;
+        log(room.id, 'INFO', `触发跳过回合`);
+    } else if (card.type === 'reverse') {
+        if (room.players.length === 2) {
+            skipCount = 2;
+            log(room.id, 'INFO', `双人游戏反转等同于跳过`);
+        } else {
+            room.direction *= -1;
+            log(room.id, 'INFO', `触发出牌顺序反转`);
+        }
+    } else if (card.type === '+2' || card.type === '+4') {
+        const amount = card.type === '+2' ? 2 : 4;
+        const nextIdx = getNextTurn(room, 1);
+        const nextPlayer = room.players[nextIdx];
+        const penalty = drawCards(room, amount);
+        nextPlayer.hand.push(...penalty);
+        log(room.id, 'INFO', `玩家(${nextPlayer.name})被罚抽${amount}张`);
+        if (!nextPlayer.isBot && nextPlayer.ws && nextPlayer.ws.readyState === 1) {
+            nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty, playerId: nextPlayer.id }));
+        }
+        broadcastEvent(room.id, 'draw_card', { playerId: nextPlayer.id, count: amount, isPenalty: true });
+        skipCount = 2;
+    }
+
+    return skipCount;
 }
 
 function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
@@ -510,51 +614,16 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
                 broadcastEvent(room.id, 'qte_win', { winner: player.name });
                 endGame(room);
             } else {
+                room.qtePendingCard = card; // 若之后被抓到，这张牌的功能效果需要在抓到时补算
                 triggerQTE(room, player);
             }
             broadcastRoom(room.id);
             return;
         }
 
-        let skipCount = 1;
-
-        if (card.type === 'skip') {
-            skipCount = 2;
-            log(room.id, 'INFO', `触发跳过回合`);
-        } else if (card.type === 'reverse') {
-            if (room.players.length === 2) {
-                skipCount = 2;
-                log(room.id, 'INFO', `双人游戏反转等同于跳过`);
-            } else {
-                room.direction *= -1;
-                log(room.id, 'INFO', `触发出牌顺序反转`);
-            }
-        } else if (card.type === '+2') {
-            const nextIdx = getNextTurn(room, 1);
-            const nextPlayer = room.players[nextIdx];
-            const penalty = drawCards(room, 2);
-            nextPlayer.hand.push(...penalty);
-            log(room.id, 'INFO', `玩家(${nextPlayer.name})被罚抽2张`);
-            if (!nextPlayer.isBot && nextPlayer.ws && nextPlayer.ws.readyState === 1) {
-                nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty, playerId: nextPlayer.id }));
-            }
-            broadcastEvent(room.id, 'draw_card', { playerId: nextPlayer.id, count: 2, isPenalty: true });
-            skipCount = 2;
-        } else if (card.type === '+4') {
-            const nextIdx = getNextTurn(room, 1);
-            const nextPlayer = room.players[nextIdx];
-            const penalty = drawCards(room, 4);
-            nextPlayer.hand.push(...penalty);
-            log(room.id, 'INFO', `玩家(${nextPlayer.name})被罚抽4张`);
-            if (!nextPlayer.isBot && nextPlayer.ws && nextPlayer.ws.readyState === 1) {
-                nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty, playerId: nextPlayer.id }));
-            }
-            broadcastEvent(room.id, 'draw_card', { playerId: nextPlayer.id, count: 4, isPenalty: true });
-            skipCount = 2;
-        }
-
+        const skipCount = applyCardEffect(room, card);
         advanceTurn(room, skipCount);
-    }, 500); 
+    }, 500);
 }
 
 function handleDisconnect(ws) {
@@ -566,11 +635,10 @@ function handleDisconnect(ws) {
     }
 
     const room = rooms.get(clientData.roomId);
-    
-    if (clients.has(ws)) {
-        clients.get(ws).roomId = null;
-        clients.get(ws).isSpectator = false;
-    }
+    const wasSpectator = clientData.isSpectator;
+
+    clientData.roomId = null;
+    clientData.isSpectator = false;
 
     if (!room) return;
 
@@ -585,7 +653,7 @@ function handleDisconnect(ws) {
         return;
     }
 
-    if (clientData.isSpectator) {
+    if (wasSpectator) {
         const specIndex = room.spectators.findIndex(s => s.id === clientData.id);
         if (specIndex !== -1) {
             log(room.id, 'INFO', `观战者(${room.spectators[specIndex].name})离开房间`);
@@ -737,7 +805,9 @@ wss.on('connection', (ws, req) => {
                     bots = 0;
                     data.hidden = true;
                 }
-                
+
+                const qteMode = (data.qteMode === 'button' && !isBigScreen) ? 'button' : 'type';
+
                 let playerName = (data.name || '神秘玩家').trim().substring(0, 15);
                 if (!playerName) playerName = '神秘玩家';
                 
@@ -765,6 +835,7 @@ wss.on('connection', (ws, req) => {
                     hidden: !!data.hidden,
                     isBigScreen: isBigScreen,
                     maxPlayers: maxPlayers,
+                    qteMode: qteMode,
                     state: 'lobby',
                     players: [{
                         id: clientId,
@@ -817,7 +888,7 @@ wss.on('connection', (ws, req) => {
                 rooms.set(roomId, room);
                 clients.set(ws, { id: clientId, roomId, name: playerName });
                 updateClientActivity(ws);
-                log(roomId, 'INFO', `房间创建成功，房主: ${playerName}，大屏: ${isBigScreen ? '是' : '否'}，总人数限制: ${maxPlayers}，AI数: ${bots}`);
+                log(roomId, 'INFO', `房间创建成功，房主: ${playerName}，大屏: ${isBigScreen ? '是' : '否'}，总人数限制: ${maxPlayers}，AI数: ${bots}，抢答方式: ${qteMode}`);
                 broadcastRoom(roomId);
             }
             else if (data.type === 'join_room') {
@@ -838,6 +909,13 @@ wss.on('connection', (ws, req) => {
 
                 if (room.isBigScreen) {
                     sendError(ws, '此房间为大屏模式，无法通过网络加入');
+                    return;
+                }
+
+                const nameTaken = room.players.some(p => p.name === playerName) ||
+                    (room.spectators && room.spectators.some(s => s.name === playerName));
+                if (nameTaken) {
+                    sendError(ws, '房间内已有相同昵称的玩家，请更换昵称');
                     return;
                 }
 
@@ -961,6 +1039,8 @@ wss.on('connection', (ws, req) => {
                 
                 room.turnIndex = Math.floor(Math.random() * room.players.length);
                 log(room.id, 'INFO', `首牌: ${firstCard.color} ${firstCard.type}，起始玩家: ${room.players[room.turnIndex].name}`);
+
+                if (!room.isBigScreen) previewNextQteWord(room); // 大屏模式手牌清零直接获胜，不会触发QTE，无需预告
 
                 broadcastRoom(room.id);
                 

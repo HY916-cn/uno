@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>UNO Online</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M20 0 H50 V50 H0 V20 Q0 0 20 0 Z' fill='%23EE3233'/%3E%3Cpath d='M50 0 H80 Q100 0 100 20 V50 H50 Z' fill='%230096E0'/%3E%3Cpath d='M0 50 H50 V100 H20 Q0 100 0 80 Z' fill='%23FFD900'/%3E%3Cpath d='M50 50 H100 V80 Q100 100 80 100 H50 Z' fill='%2355AA55'/%3E%3Cellipse cx='50' cy='50' rx='38' ry='24' fill='white' transform='rotate(-20 50 50)'/%3E%3Ctext x='50' y='58' font-family='Arial, sans-serif' font-size='24' font-weight='900' fill='black' text-anchor='middle' transform='rotate(-20 50 50)'%3EUNO%3C/text%3E%3C/svg%3E">
     <style>
@@ -100,7 +100,7 @@
         
         #home-view h1 { font-size: 48px; margin-bottom: 40px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .home-btns { display: flex; flex-direction: column; gap: 15px; width: 200px; }
-        .footer { position: absolute; bottom: 20px; font-size: 12px; color: rgba(255,255,255,0.4); cursor: default; }
+        .footer { position: absolute; bottom: 20px; bottom: calc(20px + env(safe-area-inset-bottom)); font-size: 12px; color: rgba(255,255,255,0.4); cursor: default; }
 
         /* Cards */
         .card {
@@ -168,7 +168,7 @@
         .player-item .kick-btn:hover { background: var(--red); color: white; }
         .player-status-text { transition: color 0.3s ease, transform 0.3s ease; display: inline-block; }
         
-        .lobby-bottom { position: absolute; bottom: 40px; display: flex; gap: 20px; }
+        .lobby-bottom { position: absolute; bottom: 40px; bottom: calc(40px + env(safe-area-inset-bottom)); display: flex; gap: 20px; }
         
         #btn-ready {
             width: 120px;
@@ -243,7 +243,7 @@
         .guide-text.show { opacity: 1; }
         @keyframes bounce { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -5px); } }
 
-        .game-bottom { position: relative; width: 100%; height: var(--card-h); display: flex; justify-content: center; align-items: flex-end; padding-bottom: 20px; margin-bottom: 20px; transition: opacity 0.3s ease, transform 0.3s ease; }
+        .game-bottom { position: relative; width: 100%; height: var(--card-h); display: flex; justify-content: center; align-items: flex-end; padding-bottom: 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); margin-bottom: 20px; transition: opacity 0.3s ease, transform 0.3s ease; }
         .game-bottom.hide-bottom { opacity: 0; transform: translateY(40px); pointer-events: none; }
         
         .my-hand { display: flex; justify-content: center; position: relative; height: var(--card-h); width: 80%; }
@@ -284,12 +284,8 @@
         @keyframes crownGlow { 0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); } 50% { filter: drop-shadow(0 0 25px rgba(255, 215, 0, 1)) drop-shadow(0 0 50px rgba(255, 255, 255, 0.5)); transform: scale(1.1); } }
         @keyframes starlight { 0% { opacity: 0; transform: scale(0) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(180deg); } 100% { opacity: 0; transform: scale(0) rotate(360deg); } }
 
-        /* Debug HUD */
-        #debug-hud { position: fixed; bottom: 10px; left: 10px; padding: 10px; font-size: 10px; font-family: monospace; color: rgba(255,255,255,0.7); z-index: 1000; pointer-events: none; width: 200px; }
-        #debug-hud p { margin: 2px 0; }
-
         /* Chat Widget */
-        #chat-widget { position: fixed; right: -320px; bottom: 30px; width: 300px; height: 400px; z-index: 90; transition: right 0.3s ease; display: none; flex-direction: column; padding: 15px; }
+        #chat-widget { position: fixed; right: -320px; bottom: 30px; bottom: calc(30px + env(safe-area-inset-bottom)); width: 300px; height: 400px; z-index: 90; transition: right 0.3s ease; display: none; flex-direction: column; padding: 15px; }
         #chat-widget.open { right: 30px; }
         #chat-toggle-btn { position: absolute; left: -90px; bottom: 0; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 24px; }
         .chat-badge { position: absolute; top: -5px; right: -5px; width: 16px; height: 16px; background: var(--red); border-radius: 50%; border: 2px solid #333; display: none; }
@@ -312,13 +308,24 @@
         .color-btn.yellow { background-color: var(--yellow); }
         .color-btn.green { background-color: var(--green); }
 
+        /* Rules Modal */
+        #rules-modal .modal-content { width: 480px; max-width: 90vw; }
+        .rules-body { overflow-y: auto; max-height: 65vh; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; text-align: left; }
+        .rules-section-title { font-size: 15px; font-weight: bold; color: var(--yellow); margin-bottom: 6px; }
+        .rules-text { font-size: 13px; line-height: 1.8; color: rgba(255,255,255,0.85); }
+        .rules-text b { color: white; }
+        .rules-card-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; justify-content: center; }
+        .rules-card-item { --card-w: 55px; --card-h: 82px; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: rgba(255,255,255,0.6); }
+        .rules-card-item .card { font-size: 20px; }
+        .rules-card-item .card-icon { width: 26px; height: 26px; }
+
         /* Animations */
         .anim-card { position: fixed; z-index: 1000; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), top 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.2s ease-out; pointer-events: none; }
         .anim-card-inner { position: absolute; top: 0; left: 0; transform-origin: top left; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
         .anim-card .card { width: 100% !important; height: 100% !important; margin: 0 !important; }
         
         /* Toast */
-        #toast-container { position: fixed; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 2000; pointer-events: none; align-items: flex-end; }
+        #toast-container { position: fixed; top: 20px; top: calc(20px + env(safe-area-inset-top)); right: 20px; right: calc(20px + env(safe-area-inset-right)); display: flex; flex-direction: column; gap: 10px; z-index: 2000; pointer-events: none; align-items: flex-end; }
         .toast { padding: 12px 24px; color: white; border-radius: 8px; font-size: 14px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); animation: slideInRight 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), fadeOut 0.3s 2.7s forwards; }
         .toast.error { background: rgba(238, 50, 51, 0.9); }
         .toast.info { background: rgba(0, 150, 224, 0.9); }
@@ -351,6 +358,23 @@
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
 
+        /* Low Performance Mode: 关闭高开销的毛玻璃模糊和循环动画，出/发/抽牌动画在 JS 中同步缩短时长 */
+        body.low-perf * {
+            animation-duration: 0.001s !important;
+            animation-delay: 0s !important;
+            transition-duration: 0.05s !important;
+        }
+        body.low-perf .glass,
+        body.low-perf .glass-no-shadow,
+        body.low-perf #chat-widget,
+        body.low-perf #chat-toggle-btn,
+        body.low-perf #bigscreen-modal,
+        body.low-perf .modal-overlay,
+        body.low-perf #disconnect-modal {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
         /* Mobile Responsiveness */
         @media (max-width: 600px) {
             :root {
@@ -358,16 +382,15 @@
                 --card-h: 90px;
                 --radius: 8px;
             }
-            #debug-hud { display: none; } 
-            #chat-widget { width: 250px; height: 300px; right: -250px; bottom: 60px; }
+            #chat-widget { width: 250px; height: 300px; right: -250px; bottom: 60px; bottom: calc(60px + env(safe-area-inset-bottom)); }
             #chat-widget.open { right: 20px; }
             #chat-toggle-btn { width: 40px; height: 40px; bottom: 30px; left: -60px; font-size: 20px; }
-            
+
             .cards-hero { transform: scale(0.8); margin-bottom: 20px; }
             h1 { font-size: 32px !important; margin-bottom: 20px !important; }
-            .footer { bottom: 40px; }
-            
-            .btn-leave-game { top: 40px; left: 15px; padding: 8px 14px; font-size: 12px; }
+            .footer { bottom: 40px; bottom: calc(40px + env(safe-area-inset-bottom)); }
+
+            .btn-leave-game { top: 40px; top: calc(40px + env(safe-area-inset-top)); left: 15px; left: calc(15px + env(safe-area-inset-left)); padding: 8px 14px; font-size: 12px; }
             .game-header-row { margin-top: 60px; gap: 5px; margin-bottom: 10px; }
             .game-pill { padding: 6px 12px; font-size: 12px; gap: 4px; border-radius: 20px; white-space: nowrap; }
             #turn-indicator { width: auto; max-width: 40vw; }
@@ -386,7 +409,7 @@
             .card-back::after { font-size: 18px; }
             .guide-text { bottom: -80px; font-size: 12px; padding: 4px 8px; }
             
-            .game-bottom { margin-bottom: 10px; padding-bottom: 10px; }
+            .game-bottom { margin-bottom: 10px; padding-bottom: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
             .action-btn-container { bottom: calc(var(--card-h) + 40px); width: 100px; height: 40px; }
             .action-btn { font-size: 14px; }
             
@@ -447,6 +470,14 @@
         <div class="home-btns">
             <button class="primary" onclick="showModal('create-room-modal')">创建房间</button>
             <button onclick="showModal('join-room-modal')">加入房间</button>
+            <button onclick="openRulesModal()">游戏说明</button>
+        </div>
+        <div class="form-row" style="width: 200px; margin-top: 20px;">
+            <label style="font-size: 13px; color: rgba(255,255,255,0.6);">低性能模式</label>
+            <label class="toggle-switch">
+                <input type="checkbox" id="low-perf-toggle" onchange="toggleLowPerfMode()">
+                <span class="slider"></span>
+            </label>
         </div>
         <div class="footer" id="copyright-footer">2025~2026 ©HaoyuHuang All rights reserved.</div>
     </div>
@@ -545,6 +576,13 @@
                     <button onclick="changeNumber('create-bots', 1, 0, 11)">+</button>
                 </div>
             </div>
+            <div class="form-row" id="qte-mode-group">
+                <label>抢答方式</label>
+                <div style="display:flex; gap:8px;">
+                    <button type="button" id="qte-mode-type" class="qte-mode-btn primary" onclick="setQteMode('type')" style="padding:6px 12px; font-size:12px;">输入</button>
+                    <button type="button" id="qte-mode-button" class="qte-mode-btn" onclick="setQteMode('button')" style="padding:6px 12px; font-size:12px;">按钮</button>
+                </div>
+            </div>
             <div class="form-row">
                 <label>大屏同机模式</label>
                 <label class="toggle-switch">
@@ -576,6 +614,7 @@
             <div class="form-group">
                 <label>房间号</label>
                 <input type="text" id="join-room-input" placeholder="输入3位数房间号" maxlength="3">
+                <div style="font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 4px;">若该房间对局已经开始，你将以观战者身份加入，可自由切换查看各玩家视角</div>
             </div>
             <div class="form-group">
                 <label>公开大厅列表</label>
@@ -587,6 +626,57 @@
                 <button style="flex: 1;" onclick="hideModal('join-room-modal')">取消</button>
                 <button class="primary" style="flex: 1;" onclick="joinRoom()">加入</button>
             </div>
+        </div>
+    </div>
+
+    <div id="rules-modal" class="modal-overlay" onclick="if(event.target === this) hideModal('rules-modal')">
+        <div class="modal-content glass">
+            <div class="modal-header">游戏说明</div>
+            <div class="rules-body">
+                <div>
+                    <div class="rules-section-title">基本规则</div>
+                    <div class="rules-text">
+                        每人手牌 7 张，轮流出牌。出的牌必须与牌堆顶的牌<b>颜色相同</b>、<b>数字/类型相同</b>，或是<b>黑色万能牌</b>，否则只能摸一张牌；摸到的牌若能出可以立即出，否则轮到下家。谁先把手牌全部出完，谁就掌握了胜利的主动权。
+                    </div>
+                    <div class="rules-card-row" id="rules-card-examples"></div>
+                </div>
+                <div>
+                    <div class="rules-section-title">功能牌效果</div>
+                    <div class="rules-text">
+                        <b>跳过</b>：下一位玩家被跳过本回合。<br>
+                        <b>反转</b>：出牌顺序反转（仅 2 人对局时等同于跳过）。<br>
+                        <b>+2</b>：下家罚抽 2 张牌并跳过回合。<br>
+                        <b>万能牌</b>：可指定接下来的颜色，任何时候都能打出。<br>
+                        <b>+4</b>：指定颜色的同时，下家罚抽 4 张牌并跳过回合。
+                    </div>
+                </div>
+                <div>
+                    <div class="rules-section-title">冠军争夺战（QTE）</div>
+                    <div class="rules-text">
+                        手牌打光的瞬间游戏并<b>不会立即结束</b>——全场会弹出「UNO 验证码」抢答挑战。创建房间时可选择抢答方式：<b>输入模式</b>需要抢先打出弹窗上的 3 位数字验证码（游戏开局和每次验证码被抢后都会提前预告下一组数字，方便提前记住，真正比拼的是反应速度）；<b>按钮模式</b>只需抢先点击按钮即可，没有打字门槛。所有玩家的抢答弹窗会尽量做到同时出现，避免网络延迟带来的不公平。<br>
+                        打光者自己抢到 → 直接获胜结束游戏；被其他人抢到 → 打光者倒罚抽 2 张牌，游戏继续进行。
+                    </div>
+                </div>
+                <div>
+                    <div class="rules-section-title">房间与模式</div>
+                    <div class="rules-text">
+                        创建房间时可设置 2-12 人、0-11 个 AI 机器人；<b>隐藏房间</b>不会出现在公开大厅列表，只能凭 3 位房间号加入；<b>大屏同机模式</b>下多名玩家共用一台设备/一个连接轮流出牌，适合面对面聚会游玩，该模式下不支持网络加入、观战、聊天与催促。
+                    </div>
+                </div>
+                <div>
+                    <div class="rules-section-title">观战模式</div>
+                    <div class="rules-text">
+                        对局已经开始后加入房间，会自动成为观战者：可以自由切换视角查看任意玩家的手牌，能在聊天室发言（带有 [观战] 标识），但不能操作出牌。房间人数未满时，观战者可以在下一局开始前转为正式玩家。
+                    </div>
+                </div>
+                <div>
+                    <div class="rules-section-title">催促与聊天</div>
+                    <div class="rules-text">
+                        轮到别人出牌迟迟没有动作时，可以点击「催促」按钮提醒对方（对方是 AI 时会立即打断思考出牌）。右下角聊天气泡可以随时和房间内所有人文字聊天。
+                    </div>
+                </div>
+            </div>
+            <button style="width: 100%;" onclick="hideModal('rules-modal')">关闭</button>
         </div>
     </div>
 
@@ -605,12 +695,13 @@
     <div id="qte-modal" class="modal-overlay">
         <div class="modal-content glass">
             <div class="modal-header" style="color: var(--red);">冠军争夺战！</div>
-            <div>有人手牌清空！请输入以下抢答码：</div>
+            <div id="qte-desc-type">有人手牌清空！请输入以下抢答码：</div>
             <div id="qte-word-display">UNO-???</div>
             <div id="qte-input-wrapper">
                 <span>UNO -</span>
                 <input type="text" id="qte-input" maxlength="3" autocomplete="off">
             </div>
+            <button id="qte-buzz-btn" class="primary" onclick="buzzQte()" style="width: 100%; padding: 18px; font-size: 20px; display: none;">抢 UNO！</button>
         </div>
     </div>
 
@@ -652,15 +743,6 @@
         <div id="bigscreen-modal-text">玩家1 的回合</div>
     </div>
 
-    <!-- Debug HUD -->
-    <div id="debug-hud" class="glass">
-        <p>Time: <span id="debug-time"></span></p>
-        <p>WS: <span id="debug-ws">Disconnected</span></p>
-        <p>Room: <span id="debug-room">None</span></p>
-        <p>State: <span id="debug-state">-</span></p>
-        <p>Players/Bots: <span id="debug-players">0/0</span></p>
-    </div>
-
     <div id="toast-container"></div>
 
     <script>
@@ -683,6 +765,22 @@
             return `<div class="card ${cClass}" data-id="${card.id}" data-color="${card.color}" data-type="${card.type}">
                         ${center}
                     </div>`;
+        }
+
+        function openRulesModal() {
+            const examples = [
+                { color: 'red', type: '5' },
+                { color: 'yellow', type: 'skip' },
+                { color: 'blue', type: 'reverse' },
+                { color: 'green', type: '+2' },
+                { color: 'black', type: 'wild' },
+                { color: 'black', type: '+4' }
+            ];
+            const labels = { '5': '数字牌', 'skip': '跳过', 'reverse': '反转', '+2': '+2', 'wild': '万能牌', '+4': '+4' };
+            $('rules-card-examples').innerHTML = examples.map(c =>
+                `<div class="rules-card-item">${getCardHTML(c)}<span>${labels[c.type]}</span></div>`
+            ).join('');
+            showModal('rules-modal');
         }
 
         function showToast(msg, type = 'error') {
@@ -748,6 +846,7 @@
         let isPendingCheatColor = false;
         let isSpectator = false;
         let spectatorTargetId = null;
+        let currentQteWord = null;
         let lastHandCounts = {}; 
         
         // 核心修改：用于记录其他玩家刚抽到、但正在飞行动画中尚未加入 DOM 显示的牌的数量
@@ -784,10 +883,22 @@
             $('create-bots').disabled = isBig;
             $('create-hidden').disabled = isBig;
             $('create-name').disabled = isBig;
-            
+            $('qte-mode-type').disabled = isBig;
+            $('qte-mode-button').disabled = isBig;
+
             $('create-name').parentElement.style.opacity = isBig ? '0.5' : '1';
             $('bots-group').style.opacity = isBig ? '0.5' : '1';
             $('hidden-group').style.opacity = isBig ? '0.5' : '1';
+            $('qte-mode-group').style.opacity = isBig ? '0.5' : '1';
+        }
+
+        // 大屏模式下 QTE 抢答阶段完全不会触发，抢答方式选择对其无意义，因此禁用
+        let selectedQteMode = 'type';
+        function setQteMode(mode) {
+            if ($('create-bigscreen').checked) return;
+            selectedQteMode = mode;
+            $('qte-mode-type').classList.toggle('primary', mode === 'type');
+            $('qte-mode-button').classList.toggle('primary', mode === 'button');
         }
 
         // Init
@@ -795,23 +906,14 @@
         $('create-name').value = cachedName;
         $('join-name').value = cachedName;
 
-        // Debug HUD loop
-        setInterval(() => {
-            const now = new Date(Date.now() + serverTimeOffset);
-            $('debug-time').innerText = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
-            $('debug-ws').innerText = ws ? (ws.readyState === 1 ? 'Connected' : 'Disconnected') : 'None';
-            if (currentRoom) {
-                $('debug-room').innerText = currentRoom.id;
-                $('debug-state').innerText = currentRoom.state;
-                const bots = currentRoom.players.filter(p => p.isBot).length;
-                const humans = currentRoom.players.length - bots;
-                $('debug-players').innerText = `${humans}/${bots} (Max:${currentRoom.maxPlayers})`;
-            } else {
-                $('debug-room').innerText = 'None';
-                $('debug-state').innerText = '-';
-                $('debug-players').innerText = '0/0';
-            }
-        }, 100);
+        let lowPerfMode = localStorage.getItem('uno_low_perf') === '1';
+        document.body.classList.toggle('low-perf', lowPerfMode);
+        $('low-perf-toggle').checked = lowPerfMode;
+        function toggleLowPerfMode() {
+            lowPerfMode = $('low-perf-toggle').checked;
+            document.body.classList.toggle('low-perf', lowPerfMode);
+            localStorage.setItem('uno_low_perf', lowPerfMode ? '1' : '0');
+        }
 
         // WS Connect
         function connectWS() {
@@ -868,7 +970,7 @@
             const maxPlayers = parseInt($('create-max').value);
             const bots = parseInt($('create-bots').value);
             const hidden = $('create-hidden').checked;
-            sendWS('create_room', { name, maxPlayers, bots, hidden, isBigScreen });
+            sendWS('create_room', { name, maxPlayers, bots, hidden, isBigScreen, qteMode: selectedQteMode });
             hideModal('create-room-modal');
         }
 
@@ -884,7 +986,10 @@
         function leaveRoom() {
             sendWS('leave_room');
             currentRoom = null;
+            isSpectator = false;
+            spectatorTargetId = null;
             window.animatingOpponentCards = {};
+            $('chat-messages').innerHTML = '';
             switchView('home-view');
         }
 
@@ -928,6 +1033,7 @@
                         isSpectator = false;
                         spectatorTargetId = null;
                         window.animatingOpponentCards = {};
+                        $('chat-messages').innerHTML = '';
                         switchView('home-view');
                     }
                     break;
@@ -935,6 +1041,10 @@
                     const prevState = currentRoom ? currentRoom.state : null;
                     const prevRoom = currentRoom;
                     currentRoom = data.room;
+
+                    if (!prevRoom || prevRoom.id !== currentRoom.id) {
+                        $('chat-messages').innerHTML = '';
+                    }
 
                     if (currentRoom.state === 'ingame' || currentRoom.state === 'switching_turn') {
                         if (!window.animatingOpponentCards) window.animatingOpponentCards = {};
@@ -999,16 +1109,20 @@
                     showToast('有人催促你快点出牌！', 'info');
                     playUrgeSound();
                     break;
-                case 'qte_start':
-                    $('qte-word-display').innerText = `UNO-${data.qteWord}`;
-                    if (isSpectator) {
-                        $('qte-input-wrapper').style.display = 'none';
-                    } else {
-                        $('qte-input-wrapper').style.display = 'flex';
-                        $('qte-input').value = '';
-                    }
-                    showModal('qte-modal');
-                    if (!isSpectator) $('qte-input').focus();
+                case 'qte_start': {
+                    currentQteWord = data.qteWord;
+                    // 用 serverTimeOffset 把服务端约定的展示时刻换算成本地时间，
+                    // 让所有玩家的QTE弹窗尽量在同一时刻出现，避免延迟低的玩家占便宜
+                    const localRevealTime = data.revealAt ? (data.revealAt - serverTimeOffset) : Date.now();
+                    const revealDelay = Math.max(0, localRevealTime - Date.now());
+                    setTimeout(() => {
+                        // 严重延迟导致展示时刻到达时QTE已经结束的话，不再弹出已经过期的窗口
+                        if (currentRoom && currentRoom.state === 'qte') revealQteModal(data);
+                    }, revealDelay);
+                    break;
+                }
+                case 'qte_preview':
+                    showToast(`下一轮UNO验证码预告：UNO-${data.qteWord}`, 'info');
                     break;
                 case 'qte_end':
                     hideModal('qte-modal');
@@ -1573,6 +1687,26 @@
             hideModal('color-picker-modal');
         }
 
+        function revealQteModal(data) {
+            const qteIsButton = data.qteMode === 'button';
+            $('qte-desc-type').style.display = qteIsButton ? 'none' : 'block';
+            $('qte-word-display').style.display = qteIsButton ? 'none' : 'block';
+            $('qte-word-display').innerText = `UNO-${data.qteWord}`;
+            if (isSpectator) {
+                $('qte-input-wrapper').style.display = 'none';
+                $('qte-buzz-btn').style.display = 'none';
+            } else if (qteIsButton) {
+                $('qte-input-wrapper').style.display = 'none';
+                $('qte-buzz-btn').style.display = 'block';
+            } else {
+                $('qte-input-wrapper').style.display = 'flex';
+                $('qte-buzz-btn').style.display = 'none';
+                $('qte-input').value = '';
+            }
+            showModal('qte-modal');
+            if (!isSpectator && !qteIsButton) $('qte-input').focus();
+        }
+
         function submitQte() {
             const val = $('qte-input').value.trim();
             if(val.length === 3) {
@@ -1580,7 +1714,13 @@
                 $('qte-input').value = '';
             }
         }
-        
+
+        function buzzQte() {
+            if (currentQteWord === null) return;
+            sendWS('qte_submit', { word: `UNO-${currentQteWord}` });
+        }
+
+
         $('qte-input').addEventListener('input', function() {
             if (this.value.trim().length === 3) {
                 submitQte();
@@ -1627,12 +1767,15 @@
 
             el.getBoundingClientRect();
 
-            el.style.transition = 'left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), top 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.2s ease-out';
+            const flightMs = lowPerfMode ? 50 : 400;
+            const flightS = lowPerfMode ? 0.05 : 0.4;
+            const fadeS = lowPerfMode ? 0.05 : 0.2;
+            el.style.transition = `left ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), top ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), width ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), height ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), opacity ${fadeS}s ease-out`;
             el.style.left = endRect.left + 'px';
             el.style.top = endRect.top + 'px';
             el.style.width = endRect.width + 'px';
             el.style.height = endRect.height + 'px';
-            
+
             const endScaleX = endRect.width / cardSize.width;
             const endScaleY = endRect.height / cardSize.height;
             innerEl.style.transform = `scale(${endScaleX}, ${endScaleY})`;
@@ -1652,21 +1795,21 @@
                             }
                         }
                     }
-                }, 200);
+                }, lowPerfMode ? 25 : 200);
             }
 
             setTimeout(() => {
                 el.remove();
-                
+
                 if(onComplete) onComplete();
-                
+
                 if (!onComplete) {
                     const myCardEls = document.querySelectorAll('.hand-card');
                     myCardEls.forEach(card => {
                         if (card.style.opacity === '0') card.style.opacity = '1';
                     });
                 }
-            }, 400); 
+            }, flightMs);
         }
 
         function animateDrawCard(playerId, count) {
