@@ -1,8 +1,18 @@
+<div align="center">
+
 # UNO Online
 
-基于 Node.js、Express 和 WebSocket 构建的实时多人在线 UNO 网页游戏。前端采用纯原生 HTML/CSS/JavaScript 开发，无任何第三方框架依赖，配合毛玻璃（Glassmorphism）风格 UI，提供跨端游玩体验。
+**基于 Node.js + Express + WebSocket 的实时多人在线 UNO 网页游戏**
 
-技术栈：Node.js ≥ 18 · Express 4 · ws 8 · 原生前端（HTML5 / CSS3 / Vanilla JavaScript / Web Audio API / SVG）· MIT 协议。
+![Node](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
+![WebSocket](https://img.shields.io/badge/WebSocket-ws%208-010101?logo=socketdotio&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue)
+
+前端采用纯原生 HTML/CSS/JavaScript，无任何第三方框架依赖，<br/>
+配合毛玻璃（Glassmorphism）风格 UI，提供跨端游玩体验。
+
+</div>
 
 ---
 
@@ -102,4 +112,6 @@ pm2 save
 
 ## License
 
-[MIT](LICENSE) © HY916-cn
+本项目基于 [MIT](LICENSE) 协议开源。
+
+2025~2026 ©HaoyuHuang All rights reserved.
