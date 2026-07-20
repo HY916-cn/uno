@@ -302,7 +302,6 @@
             0%, 100% { box-shadow: 0 0 0 0 rgba(238,50,51,0.5); }
             50% { box-shadow: 0 0 0 12px rgba(238,50,51,0); }
         }
-        body.low-perf #qte-buzz-btn { animation: none; }
 
         /* Result View */
         .result-container { width: 90%; max-width: 500px; padding: 40px; display: flex; flex-direction: column; align-items: center; }
@@ -398,9 +397,11 @@
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
 
         /* Low Performance Mode: 关闭高开销的毛玻璃模糊和循环动画，出/发/抽牌动画在 JS 中同步缩短时长 */
+        /* animation-iteration-count:1 让无限循环动画只播一次后静止，避免 0.001s 时长把循环动画变成高频狂闪 */
         body.low-perf * {
             animation-duration: 0.001s !important;
             animation-delay: 0s !important;
+            animation-iteration-count: 1 !important;
             transition-duration: 0.05s !important;
         }
         body.low-perf .glass,
