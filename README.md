@@ -1,51 +1,67 @@
 # UNO Online
 
-基于 Node.js、Express 和 WebSocket 构建的实时多人在线 UNO 网页游戏。项目前端采用纯原生 HTML/CSS/JavaScript 开发，无任何第三方框架依赖，配合现代化的毛玻璃（Glassmorphism）UI 设计，提供流畅的跨端游玩体验。
+基于 Node.js、Express 和 WebSocket 构建的实时多人在线 UNO 网页游戏。前端采用纯原生 HTML/CSS/JavaScript 开发，无任何第三方框架依赖，配合毛玻璃（Glassmorphism）风格 UI，提供跨端游玩体验。
 
-## 🎮 游戏特性
+技术栈：Node.js ≥ 18 · Express 4 · ws 8 · 原生前端（HTML5 / CSS3 / Vanilla JavaScript / Web Audio API / SVG）· MIT 协议。
 
-* **完整对战与房间系统**
-  * 支持自由创建 2-12 人的游戏房间。
-  * 可选择将房间设置为“隐藏”或在公开大厅展示。
-  * 支持通过 3 位数房间号加入，或通过 URL 路由（`/:roomId`）直接分享邀请。
-* **智能 AI 与断线接管**
-  * 房间内可添加 0-11 个内置 AI 机器人，机器人拥有独立的随机昵称和拟真延迟出牌逻辑。
-  * 玩家若在对局中离线断连，系统会自动将该玩家转为 AI 托管，保障对局顺利进行。
-* **观战模式 (Spectator)**
-  * 当房间已满或对局已经开始时，新加入的玩家将自动成为“观战者”。
-  * 观战者可以自由切换视角，查看不同玩家的手牌，并支持在房间聊天中发送带有 `[观战]` 专属标识的消息。
-* **QTE 抢答结算机制**
-  * 当玩家打出最后一张手牌时，游戏不会立即结束，而是触发全场 QTE 抢答阶段。
-  * 系统会生成随机码（如 `UNO-123`），手牌清空者需抢先输入正确验证码才能获胜；若被其他玩家或 AI 抢先输入，则被抓获并罚抽 2 张牌继续游戏。
-* **丰富互动与彩蛋**
-  * 内置实时聊天室。
-  * **催促系统**：包含冷却时间的催促按钮，点击会触发浏览器屏幕震动效果，并调用底层 Web Audio API 生成专属提示音。
-  * **全局作弊模式**：连击页面底部版权信息 10 次可解锁隐藏的作弊模式。允许玩家无视规则打出不合法卡牌，并在服务端强行将其转化为超级 +4 万能牌（`play_cheat_card` 逻辑）。
+---
 
-## 💻 技术与安全实现
+## 游戏特性
 
-* **前端实现**
-  * 纯 Vanilla JS 配合 CSS Variables 进行主题与逻辑控制。
-  * 大量使用 CSS3 Keyframes 配合 JavaScript 计算 DOM 节点坐标，实现精确的卡牌飞行、发牌与结算皇冠等动画效果。
-  * 原生媒体查询（Media Queries）深度适配移动端（自动调整卡牌尺寸与布局）。
-* **服务端安全与并发控制**
-  * **WebSocket 限流**：限制单连接最高 40条/秒 的消息发送频率，超过即自动断开（防恶意发包）；限制单条 WS 载荷最大为 10KB。
-  * **HTTP 接口防刷**：内置简单的内存限流策略，限制单个 IP 每分钟最多 200 次 HTTP 请求，防基础 CC 攻击。
-  * **挂机清理**：内置 `AFK_TIMEOUT_MS`（5分钟），长时间无操作的连接将被自动踢出释放资源。
-  * **安全响应头**：Express 中间件自动注入 `X-Content-Type-Options`、`X-Frame-Options`、`X-XSS-Protection` 以及 `HSTS` 等安全头。
-  * 限制全局最高 2000 个 WebSocket 连接，并定时清理僵尸（Zombie）连接。
+**房间与对战**
+- 支持创建 2–12 人的游戏房间，可设为「隐藏」或在公开大厅展示。
+- 通过 3 位数房间号加入，或通过 URL 路由（`/:roomId`）直接分享邀请。
 
-## 🛠️ 技术栈
+**AI 与断线接管**
+- 房间内可添加 0–11 个内置 AI 机器人，机器人拥有独立随机昵称和拟真延迟出牌逻辑。
+- 玩家对局中掉线时，系统自动将其转为 AI 托管，保障对局继续。
 
-* **后端**: [Node.js](https://nodejs.org/)
-* **依赖**: 
-  * `express` (^4.18.2) - 静态资源服务与路由
-  * `ws` (^8.16.0) - 原生 WebSocket 实时双向通信
-* **前端**: HTML5 / CSS3 / Vanilla JavaScript / Web Audio API / SVG
+**观战模式**
+- 房间已满或对局已开始时，新加入者自动成为观战者。
+- 观战者可切换视角查看不同玩家手牌，并在聊天中发送带 `[观战]` 标识的消息。
 
-## 🚀 部署与运行
+**QTE 抢答结算**
+- 玩家打出最后一张手牌时不立即结束，而是触发全场 QTE 抢答阶段。
+- 系统生成随机码（如 `UNO-123`），手牌清空者需抢先输入正确验证码才能获胜；被他人或 AI 抢先输入则被抓获，罚抽 2 张牌继续。
 
-需要 Node.js 环境。
+**互动与彩蛋**
+- 内置实时聊天室。
+- 催促系统：带冷却时间的催促按钮，触发屏幕震动并调用 Web Audio API 生成提示音。
+- 隐藏作弊模式：连点页面底部版权信息 10 次解锁，可打出不合法卡牌，服务端会将其转化为超级 +4 万能牌。
+
+---
+
+## 技术与安全实现
+
+**前端**
+- 纯 Vanilla JS 配合 CSS Variables 进行主题与逻辑控制。
+- 使用 CSS3 Keyframes 配合 JavaScript 计算 DOM 坐标，实现卡牌飞行、发牌与结算动画。
+- 原生媒体查询适配移动端，自动调整卡牌尺寸与布局。
+
+**服务端安全与并发控制**
+- WebSocket 限流：单连接最高 40 条/秒，超过自动断开；单条 WS 载荷上限 10 KB。
+- HTTP 接口防刷：单 IP 每分钟最多 200 次 HTTP 请求。
+- 挂机清理：`AFK_TIMEOUT_MS`（5 分钟）内无操作的连接自动踢出释放资源。
+- 安全响应头：中间件自动注入 `X-Content-Type-Options`、`X-Frame-Options`、`X-XSS-Protection`、`Strict-Transport-Security`。
+- 全局最多 2000 个 WebSocket 连接，并定时清理僵尸连接。
+
+---
+
+## 项目结构
+
+- `server.js` — Express + WebSocket 服务端，承载全部房间、对局与状态逻辑
+- `public/index.html` — 单文件前端应用（原生 HTML/CSS/JavaScript）
+- `package.json` — 项目元信息与依赖
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- Node.js ≥ 18
+
+### 安装与启动
 
 ```bash
 git clone https://github.com/HY916-cn/uno.git
@@ -54,11 +70,15 @@ npm install
 npm start
 ```
 
-默认监听 `3000` 端口（写死在 `server.js` 里，改端口直接改那行），访问 [http://localhost:3000](http://localhost:3000)。
+服务默认监听 `3000` 端口，访问 http://localhost:3000 即可。端口目前写死在 `server.js` 中，如需修改可直接调整该处。
 
-### 反向代理
+---
 
-WebSocket 走的是 `/ws` 路径，nginx 记得加 `Upgrade`/`Connection` 头：
+## 部署建议
+
+### Nginx 反向代理
+
+WebSocket 走 `/ws` 路径，需为其转发 `Upgrade` / `Connection` 头：
 
 ```nginx
 location / {
@@ -70,7 +90,7 @@ location / {
 }
 ```
 
-常驻用 PM2：
+### PM2 进程守护
 
 ```bash
 npm install -g pm2
@@ -78,6 +98,8 @@ pm2 start server.js --name uno
 pm2 save
 ```
 
+---
+
 ## License
 
-MIT
+[MIT](LICENSE) © HY916-cn

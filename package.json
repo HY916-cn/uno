@@ -1,13 +1,34 @@
 {
   "name": "uno-online",
   "version": "1.0.0",
-  "description": "UNO Online Multiplayer Game",
+  "description": "基于 Node.js + Express + WebSocket 的实时多人在线 UNO 网页游戏",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "keywords": [
+    "uno",
+    "game",
+    "multiplayer",
+    "websocket",
+    "express",
+    "realtime"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HY916-cn/uno.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HY916-cn/uno/issues"
+  },
+  "homepage": "https://github.com/HY916-cn/uno#readme",
   "dependencies": {
     "express": "^4.18.2",
     "ws": "^8.16.0"
-  }
+  },
+  "author": "HY916-cn",
+  "license": "MIT"
 }
