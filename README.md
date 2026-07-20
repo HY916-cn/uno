@@ -80,7 +80,11 @@ npm install
 npm start
 ```
 
-服务默认监听 `3000` 端口，访问 http://localhost:3000 即可。端口目前写死在 `server.js` 中，如需修改可直接调整该处。
+服务默认监听 `3000` 端口，访问 http://localhost:3000 即可。可通过环境变量 `PORT` 自定义端口：
+
+```bash
+PORT=8080 npm start
+```
 
 ---
 

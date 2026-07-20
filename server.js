@@ -1263,7 +1263,7 @@ app.get('/:roomId', (req, res) => {
     }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`[SYS] 服务器已启动，监听端口: ${PORT}`);
 });
