@@ -14,6 +14,11 @@
             --yellow: #FFD900;
             --green: #55AA55;
             --black: #333333;
+            /* 翻转版深色面配色 */
+            --pink: #E84393;
+            --teal: #00B5AD;
+            --orange: #E8850C;
+            --purple: #8E44E8;
             --glass-bg: rgba(40, 40, 40, 0.6);
             --glass-border: rgba(255, 255, 255, 0.1);
             --radius: 12px;
@@ -113,6 +118,10 @@
         .card.yellow { background-color: var(--yellow); color: var(--yellow); }
         .card.green { background-color: var(--green); color: var(--green); }
         .card.black { background-color: var(--black); color: var(--black); }
+        .card.pink { background-color: var(--pink); color: var(--pink); }
+        .card.teal { background-color: var(--teal); color: var(--teal); }
+        .card.orange { background-color: var(--orange); color: var(--orange); }
+        .card.purple { background-color: var(--purple); color: var(--purple); }
         .card::before { 
             content: ''; 
             position: absolute; 
@@ -134,6 +143,9 @@
         .modal-overlay.active { display: flex; opacity: 1; }
         .modal-content { padding: 30px; width: 320px; display: flex; flex-direction: column; gap: 20px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .modal-header { font-size: 24px; font-weight: bold; text-align: center; }
+        /* 版本三选一分段选择器 */
+        .version-selector { display: flex; gap: 8px; }
+        .version-btn { flex: 1; padding: 9px 4px; font-size: 13px; }
         .form-group { display: flex; flex-direction: column; gap: 8px; }
         .form-row { display: flex; justify-content: space-between; align-items: center; }
         .number-picker { display: flex; align-items: center; gap: 10px; }
@@ -345,10 +357,36 @@
         .color-btn.blue { background-color: var(--blue); }
         .color-btn.yellow { background-color: var(--yellow); }
         .color-btn.green { background-color: var(--green); }
+        .color-btn.pink { background-color: var(--pink); }
+        .color-btn.teal { background-color: var(--teal); }
+        .color-btn.orange { background-color: var(--orange); }
+        .color-btn.purple { background-color: var(--purple); }
+        /* 毫不留情：被淘汰玩家 */
+        .game-player-card.eliminated { opacity: 0.4; filter: grayscale(0.9); }
+        .gpc-eliminated-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-12deg); background: var(--red); color: #fff; font-size: 12px; font-weight: 900; padding: 2px 8px; border-radius: 6px; letter-spacing: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+        /* 版本 / 翻面 指示 */
+        #version-indicator .side-tag { font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-left: 2px; }
+        #version-indicator .side-light { background: rgba(255,255,255,0.85); color: #222; }
+        #version-indicator .side-dark { background: #1a1a1a; color: #fff; border: 1px solid rgba(255,255,255,0.4); }
+        /* 叠加罚牌横幅 + 认罚按钮 */
+        #stack-banner { display: none; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px; padding: 8px 14px; border-radius: var(--radius); background: rgba(238,50,51,0.9); color: #fff; font-weight: bold; font-size: 15px; box-shadow: 0 4px 12px rgba(238,50,51,0.4); }
+        #stack-banner.show { display: flex; }
+        #btn-take-stack { background: var(--red); border-color: var(--red); font-weight: bold; }
+        #btn-take-stack:hover { background: #ff4747; }
+        /* 翻面动画 */
+        @keyframes flipBoard { 0% { transform: perspective(800px) rotateY(0); } 50% { transform: perspective(800px) rotateY(90deg); } 100% { transform: perspective(800px) rotateY(0); } }
+        .game-center.flipping { animation: flipBoard 0.6s ease-in-out; }
+        body.low-perf .game-center.flipping { animation: none; }
 
         /* Rules Modal */
         #rules-modal .modal-content { width: 480px; max-width: 90vw; }
         .rules-body { overflow-y: auto; max-height: 65vh; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; text-align: left; }
+        /* 游戏说明标签页 */
+        .rules-tabs { display: flex; gap: 6px; position: sticky; top: 0; background: rgba(30,30,30,0.92); padding: 4px 0 8px; z-index: 2; }
+        .rules-tab { flex: 1; padding: 8px 4px; font-size: 13px; border-radius: 10px; }
+        .rules-tab.active { background: var(--red); border-color: var(--red); font-weight: bold; }
+        .rules-panel { display: none; flex-direction: column; gap: 18px; }
+        .rules-panel.active { display: flex; }
         .rules-section-title { font-size: 15px; font-weight: bold; color: var(--yellow); margin-bottom: 6px; }
         .rules-text { font-size: 13px; line-height: 1.8; color: rgba(255,255,255,0.85); }
         .rules-text b { color: white; }
@@ -550,6 +588,7 @@
             </div>
             <div id="turn-indicator" class="game-pill glass">等待中...</div>
             <div id="direction-indicator" class="game-pill glass">方向: ↻</div>
+            <div id="version-indicator" class="game-pill glass" style="display:none;"></div>
         </div>
         <div class="game-players-row" id="game-players"></div>
         <div class="game-center">
@@ -567,8 +606,10 @@
             <div class="discard-area" id="discard-pile"></div>
         </div>
         <div class="game-bottom">
+            <div id="stack-banner"></div>
             <div class="my-hand" id="my-hand"></div>
             <div class="action-btn-container">
+                <button id="btn-take-stack" class="action-btn" style="display:none;" onclick="takeStack()">认罚接牌</button>
                 <button id="btn-skip" class="action-btn" onclick="skipTurn()">跳过</button>
                 <button id="btn-urge" class="action-btn primary" onclick="urgeTurn()">催促</button>
             </div>
@@ -596,6 +637,15 @@
     <div id="create-room-modal" class="modal-overlay">
         <div class="modal-content glass">
             <div class="modal-header">创建房间</div>
+            <div class="form-group">
+                <label>游戏版本</label>
+                <div class="version-selector">
+                    <button type="button" id="ver-classic" class="version-btn primary" onclick="setGameVersion('classic')">原版</button>
+                    <button type="button" id="ver-flip" class="version-btn" onclick="setGameVersion('flip')">翻转版</button>
+                    <button type="button" id="ver-nomercy" class="version-btn" onclick="setGameVersion('nomercy')">毫不留情</button>
+                </div>
+                <div id="version-hint" style="font-size:11px; color:rgba(255,255,255,0.55); margin-top:6px; line-height:1.4;">经典 UNO：跳过 / 反转 / +2 / +4 / 万能牌。</div>
+            </div>
             <div class="form-group">
                 <label>昵称</label>
                 <input type="text" id="create-name">
@@ -673,23 +723,93 @@
         <div class="modal-content glass">
             <div class="modal-header">游戏说明</div>
             <div class="rules-body">
-                <div>
-                    <div class="rules-section-title">基本规则</div>
-                    <div class="rules-text">
-                        每人手牌 7 张，轮流出牌。出的牌必须与牌堆顶的牌<b>颜色相同</b>、<b>数字/类型相同</b>，或是<b>黑色万能牌</b>，否则只能摸一张牌；摸到的牌若能出可以立即出，否则轮到下家。谁先把手牌全部出完，谁就掌握了胜利的主动权。
-                    </div>
-                    <div class="rules-card-row" id="rules-card-examples"></div>
+                <div class="rules-tabs">
+                    <button type="button" class="rules-tab active" id="rtab-classic" onclick="switchRulesTab('classic')">原版</button>
+                    <button type="button" class="rules-tab" id="rtab-flip" onclick="switchRulesTab('flip')">翻转版</button>
+                    <button type="button" class="rules-tab" id="rtab-nomercy" onclick="switchRulesTab('nomercy')">毫不留情</button>
                 </div>
-                <div>
-                    <div class="rules-section-title">功能牌效果</div>
-                    <div class="rules-text">
-                        <b>跳过</b>：下一位玩家被跳过本回合。<br>
-                        <b>反转</b>：出牌顺序反转（仅 2 人对局时等同于跳过）。<br>
-                        <b>+2</b>：下家罚抽 2 张牌并跳过回合。<br>
-                        <b>万能牌</b>：可指定接下来的颜色，任何时候都能打出。<br>
-                        <b>+4</b>：指定颜色的同时，下家罚抽 4 张牌并跳过回合。
+
+                <!-- 原版 -->
+                <div class="rules-panel active" id="rpanel-classic">
+                    <div>
+                        <div class="rules-section-title">基本规则</div>
+                        <div class="rules-text">
+                            每人手牌 7 张，轮流出牌。出的牌必须与牌堆顶的牌<b>颜色相同</b>、<b>数字/类型相同</b>，或是<b>黑色万能牌</b>，否则只能摸一张牌；摸到的牌若能出可以立即出，否则轮到下家。谁先把手牌全部出完，谁就掌握了胜利的主动权。
+                        </div>
+                        <div class="rules-card-row" id="rules-cards-classic"></div>
+                    </div>
+                    <div>
+                        <div class="rules-section-title">功能牌效果</div>
+                        <div class="rules-text">
+                            <b>跳过</b>：下一位玩家被跳过本回合。<br>
+                            <b>反转</b>：出牌顺序反转（仅 2 人对局时等同于跳过）。<br>
+                            <b>+2</b>：下家罚抽 2 张牌并跳过回合。<br>
+                            <b>万能牌</b>：可指定接下来的颜色，任何时候都能打出。<br>
+                            <b>+4</b>：指定颜色的同时，下家罚抽 4 张牌并跳过回合。
+                        </div>
                     </div>
                 </div>
+
+                <!-- 翻转版 -->
+                <div class="rules-panel" id="rpanel-flip">
+                    <div>
+                        <div class="rules-section-title">核心玩法</div>
+                        <div class="rules-text">
+                            全副牌<b>双面印刷</b>：浅色面（红黄蓝绿）与深色面（粉青橙紫）。开局在浅色面进行，一旦有人打出 <b>Flip 翻转牌</b>，整副牌（含所有人手牌）翻到深色面，深色行动牌惩罚更狠；再打 Flip 翻回浅色面。出牌规则同经典：与顶牌<b>数字 / 颜色 / 图案</b>之一相符，或打万能牌。
+                        </div>
+                        <div class="rules-card-row" id="rules-cards-flip"></div>
+                    </div>
+                    <div>
+                        <div class="rules-section-title">浅色面行动牌</div>
+                        <div class="rules-text">
+                            <b>抽一张</b>：下家摸 1 张并跳过。<br>
+                            <b>跳过 / 反转</b>：同经典。<br>
+                            <b>翻转</b>：整局翻到深色面。<br>
+                            <b>万能牌</b>：指定颜色。<br>
+                            <b>万能+2</b>：指定颜色且下家摸 2 张跳过；<b>仅当手里没有与当前颜色相符的牌时才能打</b>。
+                        </div>
+                    </div>
+                    <div>
+                        <div class="rules-section-title">深色面行动牌</div>
+                        <div class="rules-text">
+                            <b>抽五张</b>：下家摸 5 张并跳过。<br>
+                            <b>全员跳过</b>：跳过所有其他玩家，自己再出一次。<br>
+                            <b>反转 / 翻转 / 万能</b>：同上。<br>
+                            <b>万能指定色抽</b>：指定颜色，下家持续摸牌直到摸出该颜色为止并跳过；<b>仅当手里没有与当前颜色相符的牌时才能打</b>。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 毫不留情 -->
+                <div class="rules-panel" id="rpanel-nomercy">
+                    <div>
+                        <div class="rules-section-title">核心玩法</div>
+                        <div class="rules-text">
+                            共 168 张，行动牌更多更狠。出牌规则同经典，另有 4 条特殊规则与多种超强行动牌。目标：率先出完手牌，或把其他人全部淘汰到只剩自己。
+                        </div>
+                        <div class="rules-card-row" id="rules-cards-nomercy"></div>
+                    </div>
+                    <div>
+                        <div class="rules-section-title">四条特殊规则</div>
+                        <div class="rules-text">
+                            <b>叠加</b>：面对 +2/+4/+6/+10 时，可打出<b>数值相等或更高</b>的加牌叠上去，罚牌累加甩给下家，直到有人接不住，一次性把累计的牌全摸走。<br>
+                            <b>淘汰</b>：手牌一旦达到 <b>25 张</b>直接淘汰出局；场上只剩一人立即获胜。<br>
+                            <b>7 号换手</b>：打出任意 7，必须选一名玩家<b>交换整手牌</b>。<br>
+                            <b>0 号传手</b>：打出任意 0，<b>全体</b>按出牌方向把手牌传给下一位。
+                        </div>
+                    </div>
+                    <div>
+                        <div class="rules-section-title">超强行动牌</div>
+                        <div class="rules-text">
+                            <b>清色</b>：打出时可弃掉手里所有与它同色的牌。<br>
+                            <b>全员跳过</b>：跳过所有其他玩家，自己再出一次。<br>
+                            <b>万能反转+4</b>：先反转方向，再让下家摸 4 张跳过。<br>
+                            <b>万能+6 / +10</b>：下家摸 6 / 10 张并跳过（可被叠加）。<br>
+                            <b>万能选色轮盘</b>：指定颜色，下家持续摸牌直到摸出该颜色为止并跳过。
+                        </div>
+                    </div>
+                </div>
+
                 <div>
                     <div class="rules-section-title">冠军争夺战（QTE）</div>
                     <div class="rules-text">
@@ -723,12 +843,20 @@
     <div id="color-picker-modal" class="modal-overlay" onclick="if(event.target === this) cancelColorPicker()">
         <div class="modal-content glass" style="width: 260px;">
             <div class="modal-header">选择颜色</div>
-            <div class="color-grid">
+            <div class="color-grid" id="color-grid">
                 <div class="color-btn red" onclick="submitColor('red')"></div>
                 <div class="color-btn blue" onclick="submitColor('blue')"></div>
                 <div class="color-btn yellow" onclick="submitColor('yellow')"></div>
                 <div class="color-btn green" onclick="submitColor('green')"></div>
             </div>
+        </div>
+    </div>
+
+    <div id="swap-modal" class="modal-overlay">
+        <div class="modal-content glass" style="width: 300px;">
+            <div class="modal-header" style="color: var(--yellow);">7 号换手</div>
+            <div style="font-size:14px; color:rgba(255,255,255,0.8); text-align:center;">选择一名玩家与其交换整手牌：</div>
+            <div id="swap-target-list" style="display:flex; flex-direction:column; gap:10px;"></div>
         </div>
     </div>
 
@@ -811,36 +939,97 @@
         const SVGS = {
             'skip': `<svg class="card-icon" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" stroke="currentColor" stroke-width="12" fill="none"/><line x1="22" y1="22" x2="78" y2="78" stroke="currentColor" stroke-width="12"/></svg>`,
             'reverse': `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14V9a4 4 0 0 1 4-4h14"/><path d="m17 1 4 4-4 4m4 1v5a4 4 0 0 1-4 4H3"/><path d="m7 23-4-4 4-4"/></svg>`,
-            '+2': `<svg class="card-icon" viewBox="0 0 100 100"><text x="50" y="70" font-size="60" font-family="Arial" font-weight="900" fill="currentColor" text-anchor="middle">+2</text></svg>`,
-            'wild': `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><g transform="translate(50 50)scale(.625)" stroke="#fff" stroke-width="3"><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#d72600" transform="rotate(-40 20.606 -7.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#05a" transform="rotate(-15 18.99 -2.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#0a0" transform="rotate(10 28.575 2.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#fa0" transform="rotate(35 23.787 7.5)"/></g></svg>`,
-            '+4': `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><g transform="translate(50 50)scale(.625)"><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#d72600" stroke="#fff" stroke-width="3" transform="rotate(-40 20.606 -7.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#05a" stroke="#fff" stroke-width="3" transform="rotate(-15 18.99 -2.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#0a0" stroke="#fff" stroke-width="3" transform="rotate(10 28.575 2.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#fa0" stroke="#fff" stroke-width="3" transform="rotate(35 23.787 7.5)"/><text y="28" fill="none" font-size="80" font-family="Arial Black, Impact, sans-serif" font-weight="bold" text-anchor="middle" stroke="#1a1a1a" stroke-width="12" stroke-linejoin="round">+4</text><text y="28" fill="#fff" font-size="80" font-family="Arial Black, Impact, sans-serif" font-weight="bold" text-anchor="middle">+4</text></g></svg>`
+            // 翻转牌：阴阳双面，象征"翻面"
+            'flip': `<svg class="card-icon" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="currentColor"/><path d="M50 12 A38 38 0 0 1 50 88 Z" fill="#fff"/><circle cx="50" cy="31" r="7.5" fill="#fff"/><circle cx="50" cy="69" r="7.5" fill="currentColor"/></svg>`,
+            // 全员跳过
+            'skip-all': `<svg class="card-icon" viewBox="0 0 100 100"><circle cx="50" cy="40" r="27" stroke="currentColor" stroke-width="10" fill="none"/><line x1="31" y1="21" x2="69" y2="59" stroke="currentColor" stroke-width="10"/><text x="50" y="95" font-size="26" font-family="Arial" font-weight="900" fill="currentColor" text-anchor="middle">ALL</text></svg>`
         };
+
+        // 彩色加牌类，直接用 "+N" 文字
+        const PLUS_TYPES = { '+2': '+2', '+4': '+4', 'draw-one': '+1', 'draw-five': '+5' };
+        // 黑色万能牌叠加在四色背景上的文字
+        const WILD_LABEL = { 'wild': '', '+4': '+4', 'wild-rev4': '↺+4', 'wild+6': '+6', 'wild+10': '+10', 'wild-roulette': '轮', 'wild-drawcolor': '色', 'wild+2': '+2' };
+        // 用汉字表示的特殊牌
+        const CHAR_ICON = { 'discard-all': '清' };
+
+        function plusTextSVG(txt) {
+            const fs = txt.length >= 3 ? 44 : 60;
+            return `<svg class="card-icon" viewBox="0 0 100 100"><text x="50" y="70" font-size="${fs}" font-family="Arial" font-weight="900" fill="currentColor" text-anchor="middle">${txt}</text></svg>`;
+        }
+
+        function wildCardSVG(label) {
+            const fs = label.length >= 3 ? 48 : 80;
+            const overlay = label ? `<text y="28" fill="none" font-size="${fs}" font-family="Arial Black, Impact, sans-serif" font-weight="bold" text-anchor="middle" stroke="#1a1a1a" stroke-width="12" stroke-linejoin="round">${label}</text><text y="28" fill="#fff" font-size="${fs}" font-family="Arial Black, Impact, sans-serif" font-weight="bold" text-anchor="middle">${label}</text>` : '';
+            const strokeAttr = label ? '' : ' stroke="#fff" stroke-width="3"';
+            return `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><g transform="translate(50 50)scale(.625)"${strokeAttr}><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#d72600" stroke="#fff" stroke-width="3" transform="rotate(-40 20.606 -7.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#05a" stroke="#fff" stroke-width="3" transform="rotate(-15 18.99 -2.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#0a0" stroke="#fff" stroke-width="3" transform="rotate(10 28.575 2.5)"/><rect x="-35" y="-55" width="70" height="110" rx="8" fill="#fa0" stroke="#fff" stroke-width="3" transform="rotate(35 23.787 7.5)"/>${overlay}</g></svg>`;
+        }
 
         function getCardHTML(card) {
             if(!card) return '';
             const cClass = card.color;
-            let center = `<div style="z-index:1;">${card.type}</div>`;
-            if (SVGS[card.type]) {
-                center = SVGS[card.type];
+            const t = card.type;
+            let center;
+            // _wild：弃牌堆会把黑色万能牌重着色为当前所选颜色，用该标记保留"渲染万能牌美术"
+            if (card.color === 'black' || card._wild) {
+                center = wildCardSVG(WILD_LABEL[t] !== undefined ? WILD_LABEL[t] : '');
+            } else if (SVGS[t]) {
+                center = SVGS[t];
+            } else if (PLUS_TYPES[t]) {
+                center = plusTextSVG(PLUS_TYPES[t]);
+            } else if (CHAR_ICON[t]) {
+                center = `<div style="z-index:1; font-size:38px; font-weight:900;">${CHAR_ICON[t]}</div>`;
+            } else {
+                center = `<div style="z-index:1;">${t}</div>`;
             }
-            return `<div class="card ${cClass}" data-id="${card.id}" data-color="${card.color}" data-type="${card.type}">
+            return `<div class="card ${cClass}" data-id="${card.id}" data-color="${card.color}" data-type="${t}">
                         ${center}
                     </div>`;
         }
 
-        function openRulesModal() {
-            const examples = [
-                { color: 'red', type: '5' },
-                { color: 'yellow', type: 'skip' },
-                { color: 'blue', type: 'reverse' },
-                { color: 'green', type: '+2' },
-                { color: 'black', type: 'wild' },
-                { color: 'black', type: '+4' }
-            ];
-            const labels = { '5': '数字牌', 'skip': '跳过', 'reverse': '反转', '+2': '+2', 'wild': '万能牌', '+4': '+4' };
-            $('rules-card-examples').innerHTML = examples.map(c =>
-                `<div class="rules-card-item">${getCardHTML(c)}<span>${labels[c.type]}</span></div>`
+        function renderRuleCards(containerId, cards) {
+            $(containerId).innerHTML = cards.map(c =>
+                `<div class="rules-card-item">${getCardHTML(c)}<span>${c.label}</span></div>`
             ).join('');
+        }
+
+        function switchRulesTab(v) {
+            ['classic', 'flip', 'nomercy'].forEach(x => {
+                $('rtab-' + x).classList.toggle('active', x === v);
+                $('rpanel-' + x).classList.toggle('active', x === v);
+            });
+        }
+
+        function openRulesModal() {
+            renderRuleCards('rules-cards-classic', [
+                { color: 'red', type: '5', label: '数字牌' },
+                { color: 'yellow', type: 'skip', label: '跳过' },
+                { color: 'blue', type: 'reverse', label: '反转' },
+                { color: 'green', type: '+2', label: '+2' },
+                { color: 'black', type: 'wild', label: '万能牌' },
+                { color: 'black', type: '+4', label: '+4' }
+            ]);
+            renderRuleCards('rules-cards-flip', [
+                { color: 'blue', type: 'draw-one', label: '抽一张·浅' },
+                { color: 'green', type: 'skip', label: '跳过·浅' },
+                { color: 'yellow', type: 'flip', label: '翻转' },
+                { color: 'black', type: 'wild+2', label: '万能+2·浅' },
+                { color: 'teal', type: 'draw-five', label: '抽五张·深' },
+                { color: 'orange', type: 'skip-all', label: '全员跳过·深' },
+                { color: 'purple', type: '7', label: '数字牌·深' },
+                { color: 'black', type: 'wild-drawcolor', label: '指定色抽·深' }
+            ]);
+            renderRuleCards('rules-cards-nomercy', [
+                { color: 'red', type: '7', label: '7 换手' },
+                { color: 'blue', type: '0', label: '0 传手' },
+                { color: 'green', type: 'discard-all', label: '清色' },
+                { color: 'yellow', type: 'skip-all', label: '全员跳过' },
+                { color: 'red', type: '+4', label: '+4' },
+                { color: 'black', type: 'wild-rev4', label: '反转+4' },
+                { color: 'black', type: 'wild+6', label: '+6' },
+                { color: 'black', type: 'wild-roulette', label: '选色轮盘' }
+            ]);
+            const initTab = (currentRoom && currentRoom.version) ? currentRoom.version : (selectedGameVersion || 'classic');
+            switchRulesTab(initTab);
             showModal('rules-modal');
         }
 
@@ -962,6 +1151,19 @@
             $('qte-mode-button').classList.toggle('primary', mode === 'button');
         }
 
+        let selectedGameVersion = 'classic';
+        const VERSION_LABELS = { classic: '原版', flip: '翻转版', nomercy: '毫不留情' };
+        const VERSION_HINTS = {
+            classic: '经典 UNO：跳过 / 反转 / +2 / +4 / 万能牌。',
+            flip: '翻转版：双面牌，打出 Flip 牌整局翻到深色面，行动牌更狠。',
+            nomercy: '毫不留情：加牌可叠加、手牌满 25 张淘汰、打 7 换手、打 0 全体传手。'
+        };
+        function setGameVersion(v) {
+            selectedGameVersion = v;
+            ['classic', 'flip', 'nomercy'].forEach(x => $('ver-' + x).classList.toggle('primary', x === v));
+            $('version-hint').innerText = VERSION_HINTS[v];
+        }
+
         // Init
         const cachedName = localStorage.getItem('uno_player_name') || '';
         $('create-name').value = cachedName;
@@ -1031,7 +1233,7 @@
             const maxPlayers = parseInt($('create-max').value);
             const bots = parseInt($('create-bots').value);
             const hidden = $('create-hidden').checked;
-            sendWS('create_room', { name, maxPlayers, bots, hidden, isBigScreen, qteMode: selectedQteMode });
+            sendWS('create_room', { name, maxPlayers, bots, hidden, isBigScreen, qteMode: selectedQteMode, version: selectedGameVersion });
             hideModal('create-room-modal');
         }
 
@@ -1109,6 +1311,11 @@
 
                     if (currentRoom.state === 'ingame' || currentRoom.state === 'switching_turn') {
                         if (!window.animatingOpponentCards) window.animatingOpponentCards = {};
+                        if (window.__skipOppAnim) {
+                            // 换手 / 全体传手：整体替换手牌，本帧不把手牌增加当作"抽牌"来动画
+                            window.animatingOpponentCards = {};
+                            window.__skipOppAnim = false;
+                        } else
                         currentRoom.players.forEach(p => {
                             let oldHandCount = p.handCount; 
                             let isFirstDeal = false;
@@ -1195,8 +1402,26 @@
                 case 'cheat_need_color':
                     pendingWildCardId = data.cardId;
                     isPendingCheatColor = true;
-                    showModal('color-picker-modal');
+                    openColorPicker();
                     break;
+                case 'flip_side':
+                    showToast(data.side === 'dark' ? '翻到深色面！行动牌更狠' : '翻回浅色面', 'info');
+                    triggerFlipAnim();
+                    break;
+                case 'player_eliminated':
+                    showToast(`${data.name} 手牌达 25 张，被淘汰！`, 'error');
+                    break;
+                case 'hands_reset':
+                    window.__skipOppAnim = true;
+                    break;
+                case 'choose_swap_target': {
+                    const list = $('swap-target-list');
+                    list.innerHTML = (data.targets || []).map(t =>
+                        `<button class="primary" onclick="chooseSwapTarget('${t.id}')" style="width:100%; display:flex; justify-content:space-between; align-items:center;"><span>${t.name}</span><span style="opacity:0.85;">${t.handCount} 张</span></button>`
+                    ).join('');
+                    showModal('swap-modal');
+                    break;
+                }
             }
         }
 
@@ -1217,7 +1442,7 @@
                          onmouseout="this.style.background='transparent'"
                          onclick="joinRoom('${r.id}')">
                         <div>
-                            <div style="font-weight:bold; color:var(--yellow);">${r.id}</div>
+                            <div style="font-weight:bold; color:var(--yellow);">${r.id} <span style="font-size:11px; color:rgba(255,255,255,0.75); font-weight:normal;">${VERSION_LABELS[r.version] || '原版'}</span></div>
                             <div style="font-size:12px; color:rgba(255,255,255,0.6);">${r.state === 'lobby' ? '等待中' : '游戏中'}</div>
                         </div>
                         <div style="font-size:14px;">${r.playersCount}/${r.maxPlayers} 人</div>
@@ -1344,7 +1569,10 @@
                         if (!window.isTransitioningToResult) {
                             window.isTransitioningToResult = true;
                             hideModal('qte-modal');
-                            
+                            hideModal('swap-modal');
+                            hideModal('color-picker-modal');
+                            $('stack-banner').classList.remove('show');
+
                             const overlay = document.createElement('div');
                             overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 0.5s; color:var(--yellow); font-size:36px; font-weight:bold; text-shadow:0 0 20px rgba(255,215,0,0.5); pointer-events:none;';
                             const winner = currentRoom.results[0];
@@ -1423,6 +1651,21 @@
                 }
                 $('direction-indicator').innerText = `方向: ${currentRoom.direction === 1 ? '>>>右>>>' : '<<<左<<<'}`;
 
+                // 版本 / 翻面 指示
+                const verInd = $('version-indicator');
+                const verName = { classic: '原版', flip: '翻转版', nomercy: '毫不留情' }[currentRoom.version] || '原版';
+                if (currentRoom.version && currentRoom.version !== 'classic') {
+                    verInd.style.display = 'flex';
+                    let sideTag = '';
+                    if (currentRoom.version === 'flip') {
+                        const isDark = currentRoom.side === 'dark';
+                        sideTag = `<span class="side-tag ${isDark ? 'side-dark' : 'side-light'}">${isDark ? '深色面' : '浅色面'}</span>`;
+                    }
+                    verInd.innerHTML = `<span style="color:var(--yellow);">${verName}</span>${sideTag}`;
+                } else {
+                    verInd.style.display = 'none';
+                }
+
                 $('game-players').innerHTML = [...currentRoom.players].map(p => {
                     const isActive = p.id === (currentPlayer ? currentPlayer.id : null);
                     let handHtml = '';
@@ -1448,12 +1691,13 @@
                     }
                     
                     return `
-                        <div class="game-player-card ${isActive ? 'active-turn' : ''} ${p.id === myId || (isSpectator && p.id === spectatorTargetId) ? 'me' : ''}" id="player-hud-${p.id}" ${isSpectator ? `onclick="changeSpectatorTarget('${p.id}')" style="cursor:pointer;"` : ''}>
+                        <div class="game-player-card ${isActive ? 'active-turn' : ''} ${p.eliminated ? 'eliminated' : ''} ${p.id === myId || (isSpectator && p.id === spectatorTargetId) ? 'me' : ''}" id="player-hud-${p.id}" ${isSpectator ? `onclick="changeSpectatorTarget('${p.id}')" style="cursor:pointer;"` : ''}>
                             <div style="display:flex; align-items:center; justify-content:center; width:100%;">
                                 <span style="font-weight:bold; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${p.isBot ? '70%' : '100%'};">${p.name}</span>
                                 ${p.isBot ? '<span style="background:rgba(255,255,255,0.1); font-size:10px; padding:2px 4px; border-radius:10px; margin-left:4px; flex-shrink:0;">AI</span>' : ''}
                             </div>
                             <div class="gpc-hand">${handHtml}</div>
+                            ${p.eliminated ? '<div class="gpc-eliminated-badge">淘汰</div>' : ''}
                         </div>
                     `;
                 }).join('');
@@ -1469,7 +1713,7 @@
                     // Do not update discard pile while animation is playing for this card
                 } else if (currentRoom.topCard) {
                     const colorClass = currentRoom.topCard.color === 'black' ? currentRoom.currentColor : currentRoom.topCard.color;
-                    const visualCard = {...currentRoom.topCard, color: colorClass};
+                    const visualCard = {...currentRoom.topCard, color: colorClass, _wild: currentRoom.topCard.color === 'black'};
                     const html = getCardHTML(visualCard);
                     $('discard-pile').innerHTML = html.replace('class="card ', 'class="card discard-card ');
                     $('discard-pile').style.boxShadow = 'none';
@@ -1509,10 +1753,26 @@
 
                     $('btn-skip').classList.remove('show');
                     $('btn-urge').classList.remove('show');
-                    
+                    $('btn-take-stack').style.display = 'none';
+
+                    // 毫不留情叠加罚牌横幅
+                    const stack = currentRoom.drawStack || 0;
+                    const banner = $('stack-banner');
+                    if (stack > 0) {
+                        banner.classList.add('show');
+                        banner.innerHTML = `⚡ 叠加罚牌 <span style="font-size:19px;">${stack}</span> 张 —— 叠出更大的加牌，或认罚接下`;
+                    } else {
+                        banner.classList.remove('show');
+                    }
+
                     if (currentRoom.state === 'ingame') {
                         if (isMyTurn && !isSpectator) {
-                            if (hasDrawnThisTurn) {
+                            if (stack > 0) {
+                                // 叠加进行中：出示认罚接牌按钮（也可继续叠更大的加牌）
+                                const btn = $('btn-take-stack');
+                                btn.style.display = 'block';
+                                btn.innerText = `认罚接 ${stack} 张`;
+                            } else if (hasDrawnThisTurn) {
                                 $('btn-skip').classList.add('show');
                             }
                         } else if (!isSpectator && !currentRoom.isBigScreen) {
@@ -1521,6 +1781,15 @@
                     }
                 }
             }
+        }
+
+        function triggerFlipAnim() {
+            const el = document.querySelector('.game-center');
+            if (!el) return;
+            el.classList.remove('flipping');
+            void el.offsetWidth;
+            el.classList.add('flipping');
+            setTimeout(() => el.classList.remove('flipping'), 700);
         }
 
         // Game Actions
@@ -1723,10 +1992,36 @@
             
             if (card.color === 'black') {
                 pendingWildCardId = cardId;
-                showModal('color-picker-modal');
+                openColorPicker();
             } else {
                 sendWS('play_card', { cardId, declaredColor: card.color, cheat: isCheatMode });
             }
+        }
+
+        // 翻转版深色面用深色调色板，其余用原始四色
+        function currentPalette() {
+            if (currentRoom && currentRoom.version === 'flip' && currentRoom.side === 'dark') {
+                return ['pink', 'teal', 'orange', 'purple'];
+            }
+            return ['red', 'blue', 'yellow', 'green'];
+        }
+        function openColorPicker() {
+            $('color-grid').innerHTML = currentPalette().map(c =>
+                `<div class="color-btn ${c}" onclick="submitColor('${c}')"></div>`
+            ).join('');
+            showModal('color-picker-modal');
+        }
+
+        // 毫不留情：认罚接下叠加的所有罚牌
+        function takeStack() {
+            if (isSpectator || !currentRoom || currentRoom.state !== 'ingame') return;
+            sendWS('take_stack');
+        }
+
+        // 毫不留情：7 号换手，选择交换目标
+        function chooseSwapTarget(id) {
+            sendWS('swap_hands', { targetId: id });
+            hideModal('swap-modal');
         }
 
         function submitColor(color) {
@@ -2017,8 +2312,8 @@
 
             const endRect = discardEl.getBoundingClientRect();
             
-            const visualCard = {...card, color: card.color==='black' ? declaredColor : card.color};
-            
+            const visualCard = {...card, color: card.color==='black' ? declaredColor : card.color, _wild: card.color==='black'};
+
             animatingPlayCard = card;
 
             animateCard(startRect, endRect, getCardHTML(visualCard), () => {

@@ -116,10 +116,15 @@ function shuffle(array) {
     return array;
 }
 
-function createDeck() {
+const LIGHT_COLORS = ['red', 'yellow', 'blue', 'green'];
+const DARK_COLORS = ['pink', 'teal', 'orange', 'purple'];
+// 所有合法的可声明颜色（用于校验万能牌变色，防止恶意字符串注入前端渲染）
+const VALID_COLORS = [...LIGHT_COLORS, ...DARK_COLORS];
+
+// 原版 UNO：108 张
+function createClassicDeck() {
     const deck = [];
-    const colors = ['red', 'yellow', 'blue', 'green'];
-    for (const color of colors) {
+    for (const color of LIGHT_COLORS) {
         deck.push({ id: generateId(), color, type: '0' });
         for (let i = 1; i <= 9; i++) {
             deck.push({ id: generateId(), color, type: String(i) });
@@ -137,6 +142,95 @@ function createDeck() {
     return shuffle(deck);
 }
 
+// 毫不留情 Show 'Em No Mercy：约 168 张
+// 数字牌 76 + 彩色行动牌 48（跳过/反转/+2/+4/清色/全员跳过）+ 万能牌 44
+// （行动牌 +4 在本版本为彩色牌；万能牌为反转+4/+6/+10/选色轮盘，牌数近似官方分布）
+function createNoMercyDeck() {
+    const deck = [];
+    for (const color of LIGHT_COLORS) {
+        deck.push({ id: generateId(), color, type: '0' });
+        for (let i = 1; i <= 9; i++) {
+            deck.push({ id: generateId(), color, type: String(i) });
+            deck.push({ id: generateId(), color, type: String(i) });
+        }
+        for (const type of ['skip', 'reverse', '+2', '+4', 'discard-all', 'skip-all']) {
+            deck.push({ id: generateId(), color, type });
+            deck.push({ id: generateId(), color, type });
+        }
+    }
+    for (const type of ['wild-rev4', 'wild+6', 'wild+10', 'wild-roulette']) {
+        for (let i = 0; i < 11; i++) {
+            deck.push({ id: generateId(), color: 'black', type });
+        }
+    }
+    return shuffle(deck);
+}
+
+// 翻转版 UNO Flip：112 张双面牌，每张牌带 light / dark 两面，color/type 为"当前面"
+function createFlipDeck() {
+    const makeFaces = (colors, actions, wildTypes) => {
+        const normal = [], flips = [], wilds = [];
+        for (const color of colors) {
+            for (let i = 1; i <= 9; i++) {          // 双面牌无 0，数字 1-9 各两张
+                normal.push({ color, type: String(i) });
+                normal.push({ color, type: String(i) });
+            }
+            for (const t of actions) {              // 每色两张的行动牌
+                normal.push({ color, type: t });
+                normal.push({ color, type: t });
+            }
+            flips.push({ color, type: 'flip' });    // Flip 牌每色两张
+            flips.push({ color, type: 'flip' });
+        }
+        for (let i = 0; i < 4; i++) {               // 万能牌四张 + 特殊万能牌四张
+            wilds.push({ color: 'black', type: 'wild' });
+            wilds.push({ color: 'black', type: wildTypes });
+        }
+        return { normal, flips, wilds };
+    };
+
+    const light = makeFaces(LIGHT_COLORS, ['draw-one', 'reverse', 'skip'], 'wild+2');
+    const dark = makeFaces(DARK_COLORS, ['draw-five', 'reverse', 'skip-all'], 'wild-drawcolor');
+
+    // 分类内各自打乱后配对：普通面↔普通面、Flip↔Flip、万能↔万能，保证翻面后仍是合理的牌
+    shuffle(light.normal); shuffle(dark.normal);
+    shuffle(light.flips); shuffle(dark.flips);
+    shuffle(light.wilds); shuffle(dark.wilds);
+
+    const deck = [];
+    const zip = (la, da) => {
+        for (let i = 0; i < la.length; i++) {
+            deck.push({ id: generateId(), light: la[i], dark: da[i], color: la[i].color, type: la[i].type });
+        }
+    };
+    zip(light.normal, dark.normal);
+    zip(light.flips, dark.flips);
+    zip(light.wilds, dark.wilds);
+    return shuffle(deck);
+}
+
+function createDeck(version) {
+    if (version === 'flip') return createFlipDeck();
+    if (version === 'nomercy') return createNoMercyDeck();
+    return createClassicDeck();
+}
+
+// 把某张翻转版牌切换到指定面（light/dark），刷新其对外的 color/type
+function applySide(card, side) {
+    if (card && card[side]) {
+        card.color = card[side].color;
+        card.type = card[side].type;
+    }
+}
+
+// 翻转版翻面：把牌库、弃牌堆、所有玩家手牌统一切到目标面
+function applySideAll(room) {
+    const side = room.side;
+    room.deck.forEach(c => applySide(c, side));
+    room.discardPile.forEach(c => applySide(c, side));
+    room.players.forEach(p => p.hand.forEach(c => applySide(c, side)));
+}
+
 function broadcastRoom(roomId) {
     const room = rooms.get(roomId);
     if (!room) return;
@@ -146,6 +240,10 @@ function broadcastRoom(roomId) {
         hidden: room.hidden,
         isBigScreen: room.isBigScreen,
         qteMode: room.qteMode,
+        version: room.version,
+        side: room.side,
+        drawStack: room.drawStack || 0,
+        stackValue: room.stackValue || 0,
         state: room.state,
         switchTargetIndex: room.switchTargetIndex,
         maxPlayers: room.maxPlayers,
@@ -157,6 +255,7 @@ function broadcastRoom(roomId) {
             ready: p.ready,
             hasSeenResults: p.hasSeenResults,
             handCount: p.hand.length,
+            eliminated: !!p.eliminated,
             connected: p.ws !== null || p.isBot
         })),
         spectators: (room.spectators || []).map(s => ({
@@ -278,8 +377,13 @@ function broadcastEvent(roomId, eventType, data) {
 function getNextTurn(room, step = 1) {
     let nextIndex = room.turnIndex;
     const total = room.players.length;
-    for (let i = 0; i < step; i++) {
+    let moved = 0;
+    let guard = 0;
+    // 跳过已被"毫不留情规则"淘汰的玩家；guard 防止极端情况下死循环
+    while (moved < step && guard < total * (step + 1) + total) {
         nextIndex = (nextIndex + room.direction + total) % total;
+        if (!room.players[nextIndex].eliminated) moved++;
+        guard++;
     }
     return nextIndex;
 }
@@ -333,6 +437,154 @@ function canPlayCard(card, topCard, currentColor) {
     if (card.color === currentColor) return true;
     if (card.type === topCard.type && card.color !== 'black' && topCard.color !== 'black') return true;
     return false;
+}
+
+// ===== 版本规则辅助 =====
+
+// 加牌类行动牌的抽牌数值（用于毫不留情的叠加比较）
+const DRAW_VALUE = { '+2': 2, '+4': 4, 'wild-rev4': 4, 'wild+6': 6, 'wild+10': 10 };
+// 毫不留情中可参与叠加的牌型
+const STACKABLE = new Set(['+2', '+4', 'wild-rev4', 'wild+6', 'wild+10']);
+// 翻转版中"手上有同色牌就不能打"的万能牌
+const RESTRICTED_WILD = new Set(['wild+2', 'wild-drawcolor']);
+
+function getDrawValue(card) { return DRAW_VALUE[card.type] || 0; }
+
+function activeCount(room) { return room.players.filter(p => !p.eliminated).length; }
+
+function isNumberCard(card) { return /^[0-9]$/.test(card.type); }
+
+// 手里是否有与当前颜色相符的牌（供翻转版万能牌限制判断）
+function hasColorMatch(room, player) {
+    return player.hand.some(c => c.color !== 'black' && c.color === room.currentColor);
+}
+
+// 统一的"这张牌现在能不能打"判定（服务端出牌校验 + AI 都用它）
+function isPlayable(room, player, card) {
+    // 毫不留情：叠加进行中，只能叠出等值或更高的加牌，其余一律不能打
+    if (room.drawStack > 0) {
+        return STACKABLE.has(card.type) && getDrawValue(card) >= room.stackValue;
+    }
+    const topCard = room.discardPile[room.discardPile.length - 1];
+    if (!canPlayCard(card, topCard, room.currentColor)) return false;
+    // 翻转版：万能+2 / 万能指定色抽，仅当手里没有与当前颜色相符的牌时才能打
+    if (RESTRICTED_WILD.has(card.type) && hasColorMatch(room, player)) return false;
+    return true;
+}
+
+function applyReverse(room) { room.direction *= -1; }
+
+// 给下家发指定张数的罚牌
+function penalizeNext(room, amount) {
+    const nextIdx = getNextTurn(room, 1);
+    const np = room.players[nextIdx];
+    const pen = drawCards(room, amount);
+    np.hand.push(...pen);
+    log(room.id, 'INFO', `玩家(${np.name})被罚抽${pen.length}张`);
+    if (!np.isBot && np.ws && np.ws.readyState === 1) {
+        np.ws.send(JSON.stringify({ type: 'draw_card_result', cards: pen, playerId: np.id }));
+    }
+    broadcastEvent(room.id, 'draw_card', { playerId: np.id, count: pen.length, isPenalty: true });
+    checkEliminations(room);
+}
+
+// 选色轮盘 / 万能指定色抽：下家持续摸牌直到摸到指定颜色（万能牌不算），全部收入手中
+function rouletteDraw(room, color) {
+    const nextIdx = getNextTurn(room, 1);
+    const np = room.players[nextIdx];
+    const drawn = [];
+    let safety = 0;
+    while (safety < 50) {
+        const c = drawCards(room, 1);
+        if (c.length === 0) break;
+        drawn.push(c[0]);
+        safety++;
+        if (c[0].color === color) break;
+    }
+    np.hand.push(...drawn);
+    log(room.id, 'INFO', `玩家(${np.name})选色轮盘摸了${drawn.length}张`);
+    if (!np.isBot && np.ws && np.ws.readyState === 1) {
+        np.ws.send(JSON.stringify({ type: 'draw_card_result', cards: drawn, playerId: np.id }));
+    }
+    broadcastEvent(room.id, 'draw_card', { playerId: np.id, count: drawn.length, isPenalty: true });
+    checkEliminations(room);
+}
+
+// 打 0：所有未淘汰玩家按当前出牌方向把整手牌传给下一位
+function passAllHands(room) {
+    const active = room.players.filter(p => !p.eliminated);
+    const n = active.length;
+    if (n < 2) return;
+    const hands = active.map(p => p.hand);
+    const newHands = new Array(n);
+    for (let i = 0; i < n; i++) {
+        const target = ((i + room.direction) % n + n) % n;
+        newHands[target] = hands[i];
+    }
+    for (let i = 0; i < n; i++) active[i].hand = newHands[i];
+    log(room.id, 'INFO', `打出 0，全体传手`);
+    // 手牌整体替换：通知客户端跳过本帧的"抽牌"动画核算，靠随后的 room_state 广播刷新
+    broadcastEvent(room.id, 'hands_reset', {});
+}
+
+// 检查是否有玩家手牌达到 25 张需要淘汰；若只剩一人则结束本局
+function checkEliminations(room) {
+    if (room.version !== 'nomercy') return;
+    for (const p of room.players) {
+        if (!p.eliminated && p.hand.length >= 25) {
+            p.eliminated = true;
+            if (!room.removedPile) room.removedPile = [];
+            room.removedPile.push(...p.hand);
+            p.hand = [];
+            log(room.id, 'INFO', `玩家(${p.name})手牌达25张，被淘汰`);
+            broadcastEvent(room.id, 'player_eliminated', { playerId: p.id, name: p.name });
+        }
+    }
+    const alive = room.players.filter(p => !p.eliminated);
+    if (alive.length === 1 && room.state === 'ingame') {
+        log(room.id, 'INFO', `只剩玩家(${alive[0].name})，直接获胜`);
+        broadcastEvent(room.id, 'qte_win', { winner: alive[0].name });
+        endGame(room);
+        return true;
+    }
+    return false;
+}
+
+// 毫不留情打 7：需要出牌者选择一名玩家交换整手牌
+function startSwap(room, player) {
+    room.pendingSwap = { byId: player.id };
+    if (player.isBot) {
+        // AI 直接选手牌最少的对手换手（抢近乎获胜者的小手牌）
+        const targets = room.players.filter(p => !p.eliminated && p.id !== player.id);
+        targets.sort((a, b) => a.hand.length - b.hand.length);
+        if (targets.length) {
+            doSwap(room, player.id, targets[0].id);
+            return;
+        }
+        room.pendingSwap = null;
+        advanceTurn(room, 1);
+        return;
+    }
+    // 真人：请该玩家选择换手目标
+    const targets = room.players.filter(p => !p.eliminated && p.id !== player.id)
+        .map(p => ({ id: p.id, name: p.name, handCount: p.hand.length }));
+    broadcastRoom(room.id);
+    if (player.ws && player.ws.readyState === 1) {
+        player.ws.send(JSON.stringify({ type: 'choose_swap_target', targets }));
+    }
+}
+
+// 执行 7 号换手
+function doSwap(room, byId, targetId) {
+    const a = room.players.find(p => p.id === byId);
+    const b = room.players.find(p => p.id === targetId);
+    if (!a || !b || b.eliminated) { room.pendingSwap = null; advanceTurn(room, 1); return; }
+    const tmp = a.hand; a.hand = b.hand; b.hand = tmp;
+    log(room.id, 'INFO', `玩家(${a.name})与(${b.name})交换手牌`);
+    room.pendingSwap = null;
+    // 手牌整体替换：通知客户端跳过本帧的"抽牌"动画核算，靠随后 advanceTurn 的 room_state 广播刷新
+    broadcastEvent(room.id, 'hands_reset', {});
+    advanceTurn(room, 1);
 }
 
 function triggerQTE(room, player) {
@@ -395,8 +647,14 @@ function handleQTESubmit(room, player, word, clientTime) {
 
         const pendingCard = room.qtePendingCard;
         room.qtePendingCard = null;
-        const skipCount = pendingCard ? applyCardEffect(room, pendingCard) : 1;
-        advanceTurn(room, skipCount);
+        if (pendingCard) {
+            const effect = applyCardEffect(room, pendingCard, targetPlayer);
+            if (room.state !== 'ingame') return;      // 补算效果若触发淘汰结束则不再推进
+            if (effect.await) { broadcastRoom(room.id); return; } // 等待换手等后续操作
+            advanceTurn(room, effect.skip);
+        } else {
+            advanceTurn(room, 1);
+        }
     }
 }
 
@@ -440,40 +698,56 @@ function checkAITurn(room) {
     }, delay);
 }
 
-const COLORS = ['red', 'yellow', 'blue', 'green'];
+// 认罚接下叠加的所有罚牌，回合结束（真人点按钮 / AI 无牌可叠时调用）
+function resolveTakeStack(room, player) {
+    const amount = room.drawStack;
+    room.drawStack = 0;
+    room.stackValue = 0;
+    const pen = drawCards(room, amount);
+    player.hand.push(...pen);
+    log(room.id, 'INFO', `玩家(${player.name})认罚接下${pen.length}张`);
+    if (!player.isBot && player.ws && player.ws.readyState === 1) {
+        player.ws.send(JSON.stringify({ type: 'draw_card_result', cards: pen, playerId: player.id }));
+    }
+    broadcastEvent(room.id, 'draw_card', { playerId: player.id, count: pen.length, isPenalty: true });
+    const ended = checkEliminations(room);
+    if (ended || room.state !== 'ingame') return;
+    advanceTurn(room, 1);
+}
 
-// 选出手牌中持有最多的颜色作为变色声明，最大化后续出牌几率（保留一手好牌而非纯随机）
-function pickAIColor(hand, excludeCardId) {
-    const counts = { red: 0, yellow: 0, blue: 0, green: 0 };
+// 选出手牌中持有最多的颜色作为变色声明；翻转版按当前面调色板
+function pickAIColor(room, hand, excludeCardId) {
+    const palette = (room.version === 'flip' && room.side === 'dark') ? DARK_COLORS : LIGHT_COLORS;
+    const counts = {};
+    palette.forEach(c => counts[c] = 0);
     for (const c of hand) {
         if (c.id === excludeCardId) continue;
         if (counts[c.color] !== undefined) counts[c.color]++;
     }
-    let best = COLORS[Math.floor(Math.random() * COLORS.length)];
+    let best = palette[Math.floor(Math.random() * palette.length)];
     let bestCount = -1;
-    for (const color of COLORS) {
-        if (counts[color] > bestCount) {
-            bestCount = counts[color];
-            best = color;
-        }
+    for (const color of palette) {
+        if (counts[color] > bestCount) { bestCount = counts[color]; best = color; }
     }
     return best;
 }
 
-// 出牌优先级：下家快赢时优先攻击性卡牌；否则优先消耗普通卡牌，将万能/+4留到没有其他选择时再用
+// 出牌优先级：下家快赢时优先攻击性卡牌；否则优先消耗普通/彩色牌，把万能牌留到最后
 function pickAICard(room, bot, playableCards) {
     const nextPlayer = room.players[getNextTurn(room, 1)];
     const dangerMode = !!nextPlayer && nextPlayer.id !== bot.id && nextPlayer.hand.length <= 2;
+    const ATTACK = new Set(['+2', '+4', 'draw-one', 'draw-five', 'skip', 'skip-all', 'reverse',
+        'wild-rev4', 'wild+6', 'wild+10', 'wild-roulette', 'wild+2', 'wild-drawcolor']);
 
     const rank = (c) => {
-        if (dangerMode) {
-            if (c.type === '+4') return 0;
-            if (c.type === '+2') return 1;
-            if (c.type === 'skip' || c.type === 'reverse') return 2;
+        if (dangerMode && ATTACK.has(c.type)) {
+            // 危险模式：加牌越多越优先，其次跳过/反转
+            const dv = getDrawValue(c);
+            if (dv > 0) return 0 - dv / 100;     // 让 +10 排在 +2 之前
+            return 1;
         }
-        if (c.color !== 'black') return 3;
-        if (c.type === '+4') return 4;
-        return 5;
+        if (c.color !== 'black') return 3;       // 优先消耗彩色牌
+        return 5;                                // 黑色万能牌留到最后
     };
 
     const sorted = [...playableCards].sort((a, b) => rank(a) - rank(b));
@@ -486,22 +760,34 @@ function executeAITurn(room, bot) {
     if (room.state !== 'ingame') return;
     if (room.players[room.turnIndex].id !== bot.id) return;
     if (room.animating) return; // 上一次出牌的结算动画还没走完，避免被 urge 等重入触发二次判定
+    if (room.pendingSwap) return; // 等待换手选择期间不出牌
 
-    const topCard = room.discardPile[room.discardPile.length - 1];
-    const currentColor = room.currentColor;
+    // 毫不留情叠加进行中：能叠就叠（挑数值最小的合规牌），否则认罚接牌
+    if (room.drawStack > 0) {
+        const qualifying = bot.hand.filter(c => STACKABLE.has(c.type) && getDrawValue(c) >= room.stackValue);
+        if (qualifying.length > 0) {
+            qualifying.sort((a, b) => getDrawValue(a) - getDrawValue(b));
+            const c = qualifying[0];
+            const color = c.color === 'black' ? pickAIColor(room, bot.hand, c.id) : null;
+            playCardLogic(room, bot, c.id, color);
+        } else {
+            resolveTakeStack(room, bot);
+        }
+        return;
+    }
 
     let cardToPlay = null;
     let colorToDeclare = null;
 
     if (!room.hasDrawnThisTurn) {
-        const playableCards = bot.hand.filter(c => canPlayCard(c, topCard, currentColor));
+        const playableCards = bot.hand.filter(c => isPlayable(room, bot, c));
         if (playableCards.length > 0) {
             cardToPlay = pickAICard(room, bot, playableCards);
         }
 
         if (cardToPlay) {
             if (cardToPlay.color === 'black') {
-                colorToDeclare = pickAIColor(bot.hand, cardToPlay.id);
+                colorToDeclare = pickAIColor(room, bot.hand, cardToPlay.id);
             }
             playCardLogic(room, bot, cardToPlay.id, colorToDeclare);
         } else {
@@ -520,9 +806,9 @@ function executeAITurn(room, bot) {
         }
     } else {
         const lastDrawn = bot.hand[bot.hand.length - 1];
-        if (canPlayCard(lastDrawn, topCard, currentColor)) {
+        if (isPlayable(room, bot, lastDrawn)) {
             if (lastDrawn.color === 'black') {
-                colorToDeclare = pickAIColor(bot.hand, lastDrawn.id);
+                colorToDeclare = pickAIColor(room, bot.hand, lastDrawn.id);
             }
             playCardLogic(room, bot, lastDrawn.id, colorToDeclare);
         } else {
@@ -532,37 +818,64 @@ function executeAITurn(room, bot) {
     }
 }
 
-// 结算一张牌的功能效果（跳过/反转/+2/+4），返回下一回合应跳过的步数
+// 结算一张牌的功能效果，返回 { skip: n }（按 n 步推进）或 { await: true }（等待玩家额外操作后再推进）
 // 单独抽出来是因为 QTE 被抓时也要补算清空手牌的那张功能牌效果，而不能直接丢弃
-function applyCardEffect(room, card) {
-    let skipCount = 1;
+function applyCardEffect(room, card, player) {
+    const type = card.type;
 
-    if (card.type === 'skip') {
-        skipCount = 2;
-        log(room.id, 'INFO', `触发跳过回合`);
-    } else if (card.type === 'reverse') {
-        if (room.players.length === 2) {
-            skipCount = 2;
-            log(room.id, 'INFO', `双人游戏反转等同于跳过`);
-        } else {
-            room.direction *= -1;
-            log(room.id, 'INFO', `触发出牌顺序反转`);
-        }
-    } else if (card.type === '+2' || card.type === '+4') {
-        const amount = card.type === '+2' ? 2 : 4;
-        const nextIdx = getNextTurn(room, 1);
-        const nextPlayer = room.players[nextIdx];
-        const penalty = drawCards(room, amount);
-        nextPlayer.hand.push(...penalty);
-        log(room.id, 'INFO', `玩家(${nextPlayer.name})被罚抽${amount}张`);
-        if (!nextPlayer.isBot && nextPlayer.ws && nextPlayer.ws.readyState === 1) {
-            nextPlayer.ws.send(JSON.stringify({ type: 'draw_card_result', cards: penalty, playerId: nextPlayer.id }));
-        }
-        broadcastEvent(room.id, 'draw_card', { playerId: nextPlayer.id, count: amount, isPenalty: true });
-        skipCount = 2;
+    // 毫不留情：加牌类进入叠加流程，交给下一位决定叠还是认罚（不立即罚抽/跳过）
+    if (room.version === 'nomercy' && STACKABLE.has(type)) {
+        if (type === 'wild-rev4') applyReverse(room);
+        room.drawStack += getDrawValue(card);
+        room.stackValue = getDrawValue(card);
+        log(room.id, 'INFO', `叠加罚牌累计 ${room.drawStack} 张`);
+        return { skip: 1 };
     }
 
-    return skipCount;
+    switch (type) {
+        case 'skip':
+            return { skip: 2 };
+        case 'reverse':
+            if (activeCount(room) === 2) return { skip: 2 }; // 双人反转等同跳过
+            applyReverse(room);
+            return { skip: 1 };
+        case '+2': case '+4':                 // 原版及非叠加情形：立即罚抽并跳过
+            penalizeNext(room, getDrawValue(card));
+            return { skip: 2 };
+        case 'wild+2':                        // 翻转版浅色 万能+2
+            penalizeNext(room, 2);
+            return { skip: 2 };
+        case 'draw-one':                      // 翻转版浅色 抽一张
+            penalizeNext(room, 1);
+            return { skip: 2 };
+        case 'draw-five':                     // 翻转版深色 抽五张
+            penalizeNext(room, 5);
+            return { skip: 2 };
+        case 'skip-all':                      // 全员跳过，回到自己
+            return { skip: activeCount(room) };
+        case 'discard-all':                   // 清色：同色牌已在出牌时弃掉，无额外推进
+            return { skip: 1 };
+        case 'wild-roulette':                 // 毫不留情 选色轮盘
+        case 'wild-drawcolor':                // 翻转版深色 万能指定色抽
+            rouletteDraw(room, room.currentColor);
+            return { skip: 2 };
+        case 'flip': {                        // 翻转版 翻面
+            room.side = room.side === 'light' ? 'dark' : 'light';
+            applySideAll(room);
+            room.currentColor = card.color;   // 翻面后当前颜色取该牌翻面后的颜色
+            log(room.id, 'INFO', `翻面 → ${room.side}`);
+            broadcastEvent(room.id, 'flip_side', { side: room.side });
+            return { skip: 1 };
+        }
+        case '7':                             // 毫不留情 7 号换手
+            if (room.version === 'nomercy') { startSwap(room, player); return { await: true }; }
+            return { skip: 1 };
+        case '0':                             // 毫不留情 0 号全体传手
+            if (room.version === 'nomercy') passAllHands(room);
+            return { skip: 1 };
+        default:
+            return { skip: 1 };
+    }
 }
 
 function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
@@ -571,11 +884,10 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
     if (cardIndex === -1) return;
     let card = player.hand[cardIndex];
 
-    const topCard = room.discardPile[room.discardPile.length - 1];
-    const isPlayable = canPlayCard(card, topCard, room.currentColor);
+    const playable = isPlayable(room, player, card);
 
     if (isCheat && !player.isBot) {
-        if (!isPlayable) {
+        if (!playable) {
             log(room.id, 'INFO', `[作弊] 玩家(${player.name})打出不合法牌，强行要求变色为 +4 牌`);
             if (player.ws && player.ws.readyState === 1) {
                 player.ws.send(JSON.stringify({ type: 'cheat_need_color', cardId: card.id }));
@@ -583,10 +895,16 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
             return;
         }
     } else {
-        if (!isPlayable) {
+        if (!playable) {
             log(room.id, 'WARN', `玩家(${player.name})出牌不合法`);
             return;
         }
+    }
+
+    // 黑色万能牌需声明颜色：只接受合法颜色，拦截被注入到弃牌堆渲染 class 中的恶意字符串
+    if (card.color === 'black' && !VALID_COLORS.includes(declaredColor)) {
+        log(room.id, 'WARN', `玩家(${player.name})声明了非法颜色，已拦截`);
+        return;
     }
 
     player.hand.splice(cardIndex, 1);
@@ -608,6 +926,17 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
     setTimeout(() => {
         room.animating = false;
 
+        // 毫不留情 清色：把手里所有与该牌同色的牌一并弃掉（可能因此清空手牌）
+        if (card.type === 'discard-all') {
+            const removed = player.hand.filter(c => c.color === card.color);
+            player.hand = player.hand.filter(c => c.color !== card.color);
+            if (removed.length) {
+                room.discardPile.push(...removed);
+                log(room.id, 'INFO', `清色弃掉${removed.length}张${card.color}`);
+                // 手牌缩减，靠随后的 room_state 广播刷新客户端
+            }
+        }
+
         if (player.hand.length === 0) {
             if (room.isBigScreen) {
                 log(room.id, 'INFO', `大屏模式，玩家(${player.name})手牌为0，直接获胜`);
@@ -621,8 +950,10 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
             return;
         }
 
-        const skipCount = applyCardEffect(room, card);
-        advanceTurn(room, skipCount);
+        const effect = applyCardEffect(room, card, player);
+        if (room.state !== 'ingame') return;                  // 效果触发淘汰结束则不再推进
+        if (effect.await) { broadcastRoom(room.id); return; } // 等待换手选择等后续操作
+        advanceTurn(room, effect.skip);
     }, 500);
 }
 
@@ -786,6 +1117,7 @@ wss.on('connection', (ws, req) => {
                         publicRooms.push({
                             id: room.id,
                             state: room.state,
+                            version: room.version,
                             playersCount: room.players.length,
                             maxPlayers: room.maxPlayers
                         });
@@ -807,6 +1139,7 @@ wss.on('connection', (ws, req) => {
                 }
 
                 const qteMode = (data.qteMode === 'button' && !isBigScreen) ? 'button' : 'type';
+                const version = ['classic', 'flip', 'nomercy'].includes(data.version) ? data.version : 'classic';
 
                 let playerName = (data.name || '神秘玩家').trim().substring(0, 15);
                 if (!playerName) playerName = '神秘玩家';
@@ -836,6 +1169,11 @@ wss.on('connection', (ws, req) => {
                     isBigScreen: isBigScreen,
                     maxPlayers: maxPlayers,
                     qteMode: qteMode,
+                    version: version,
+                    side: 'light',
+                    drawStack: 0,
+                    stackValue: 0,
+                    pendingSwap: null,
                     state: 'lobby',
                     players: [{
                         id: clientId,
@@ -1009,12 +1347,19 @@ wss.on('connection', (ws, req) => {
                     return;
                 }
 
-                log(room.id, 'INFO', '游戏开始');
+                log(room.id, 'INFO', `游戏开始（版本：${room.version}）`);
                 room.state = 'ingame';
-                room.deck = createDeck();
+                room.deck = createDeck(room.version);
                 room.discardPile = [];
                 room.direction = 1;
                 room.hasDrawnThisTurn = false;
+                // 重置各版本对局状态
+                room.side = 'light';
+                room.drawStack = 0;
+                room.stackValue = 0;
+                room.pendingSwap = null;
+                room.removedPile = [];
+                room.players.forEach(p => { p.eliminated = false; });
 
                 room.players.forEach(p => {
                     const dealt = drawCards(room, 7);
@@ -1024,10 +1369,12 @@ wss.on('connection', (ws, req) => {
                     }
                 });
 
+                // 首牌必须是数字牌（原版仅规避 +4，其余版本按规则重翻至数字牌）
                 let firstCard;
                 do {
                     firstCard = drawCards(room, 1)[0];
-                    if (firstCard.type === '+4') {
+                    const reject = room.version === 'classic' ? (firstCard.type === '+4') : !isNumberCard(firstCard);
+                    if (reject) {
                         room.deck.push(firstCard);
                         room.deck = shuffle(room.deck);
                         firstCard = null;
@@ -1035,7 +1382,7 @@ wss.on('connection', (ws, req) => {
                 } while (!firstCard);
 
                 room.discardPile.push(firstCard);
-                room.currentColor = firstCard.color === 'black' ? 'red' : firstCard.color; 
+                room.currentColor = firstCard.color === 'black' ? 'red' : firstCard.color;
                 
                 room.turnIndex = Math.floor(Math.random() * room.players.length);
                 log(room.id, 'INFO', `首牌: ${firstCard.color} ${firstCard.type}，起始玩家: ${room.players[room.turnIndex].name}`);
@@ -1104,6 +1451,10 @@ wss.on('connection', (ws, req) => {
                     if (player.id !== clientData.id) return;
                 }
                 
+                if (room.drawStack > 0) {
+                    sendError(ws, '叠加罚牌进行中，请点击认罚接牌');
+                    return;
+                }
                 if (room.hasDrawnThisTurn) {
                     sendError(ws, '本回合已抽过牌');
                     return;
@@ -1134,12 +1485,45 @@ wss.on('connection', (ws, req) => {
                     if (player.id !== clientData.id) return;
                 }
                 
+                if (room.drawStack > 0) {
+                    sendError(ws, '叠加罚牌进行中，请点击认罚接牌');
+                    return;
+                }
                 if (!room.hasDrawnThisTurn) {
                     sendError(ws, '必须先抽牌才能跳过');
                     return;
                 }
                 log(room.id, 'INFO', `玩家(${player.name})跳过回合`);
                 advanceTurn(room, 1);
+            }
+            else if (data.type === 'take_stack') {
+                // 毫不留情：认罚接下叠加的所有罚牌
+                const room = rooms.get(clientData.roomId);
+                if (!room || room.state !== 'ingame' || room.animating) return;
+                if (!room.drawStack || room.drawStack <= 0) return;
+                const player = room.players[room.turnIndex];
+                if (room.isBigScreen) {
+                    if (player.ws !== ws) return;
+                } else {
+                    if (player.id !== clientData.id) return;
+                }
+                resolveTakeStack(room, player);
+            }
+            else if (data.type === 'swap_hands') {
+                // 毫不留情：打出 7 后选择换手目标
+                if (typeof data.targetId !== 'string') return;
+                const room = rooms.get(clientData.roomId);
+                if (!room || room.state !== 'ingame' || !room.pendingSwap) return;
+                const byPlayer = room.players.find(p => p.id === room.pendingSwap.byId);
+                if (!byPlayer) return;
+                if (room.isBigScreen) {
+                    if (byPlayer.ws !== ws) return;
+                } else {
+                    if (byPlayer.id !== clientData.id) return;
+                }
+                const target = room.players.find(p => p.id === data.targetId);
+                if (!target || target.eliminated || target.id === byPlayer.id) return;
+                doSwap(room, byPlayer.id, data.targetId);
             }
             else if (data.type === 'urge') {
                 const room = rooms.get(clientData.roomId);
