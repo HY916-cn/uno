@@ -260,10 +260,49 @@
         .action-btn.show { display: block; animation: popIn 0.3s; }
 
         /* QTE */
-        #qte-modal .modal-content { text-align: center; }
-        #qte-word-display { font-size: 32px; font-weight: bold; color: var(--yellow); letter-spacing: 4px; margin: 10px 0; }
-        #qte-input-wrapper { display: flex; align-items: center; font-size: 24px; gap: 10px; justify-content: center; }
-        #qte-input { width: 100px; font-size: 24px; text-align: center; letter-spacing: 2px; }
+        #qte-modal .modal-content { text-align: center; gap: 16px; width: 340px; max-width: 92vw; padding: 28px 26px; }
+        #qte-modal .modal-header { letter-spacing: 2px; text-shadow: 0 2px 14px rgba(238,50,51,0.55); }
+        #qte-desc-type { font-size: 14px; color: rgba(255,255,255,0.72); line-height: 1.5; }
+        #qte-word-display {
+            font-size: 30px; font-weight: 800; color: var(--yellow); letter-spacing: 4px;
+            padding: 12px 0; margin: 2px 0;
+            background: rgba(255,217,0,0.08); border: 1px dashed rgba(255,217,0,0.4);
+            border-radius: var(--radius);
+        }
+        #qte-input-wrapper { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+
+        /* 已输入验证码显示 */
+        #qte-code-box { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .qte-code-prefix { font-size: 26px; font-weight: 800; color: rgba(255,255,255,0.85); letter-spacing: 1px; }
+        .qte-digits { display: flex; gap: 8px; }
+        .qte-digit {
+            width: 46px; height: 58px; display: flex; align-items: center; justify-content: center;
+            font-size: 30px; font-weight: 800; color: #fff;
+            background: rgba(0,0,0,0.45); border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 10px; transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        }
+        .qte-digit.filled { border-color: var(--blue); background: rgba(0,150,224,0.15); }
+        .qte-digit.active { border-color: var(--yellow); box-shadow: 0 0 0 3px rgba(255,217,0,0.22); }
+
+        /* 页面数字键盘 */
+        #qte-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+        .qte-key {
+            height: 56px; padding: 0; font-size: 24px; font-weight: 700; color: #fff;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); border-radius: 12px;
+        }
+        .qte-key:hover { background: rgba(255,255,255,0.18); transform: none; }
+        .qte-key:active { transform: scale(0.92); background: rgba(255,255,255,0.28); }
+        .qte-key-action { font-size: 16px; font-weight: 600; color: var(--yellow); background: rgba(255,217,0,0.08); border-color: rgba(255,217,0,0.28); }
+        .qte-key-action:hover { background: rgba(255,217,0,0.18); }
+
+        /* 抢答按钮 */
+        #qte-buzz-btn { width: 100%; padding: 22px; font-size: 22px; font-weight: 800; letter-spacing: 3px; border-radius: 14px; animation: qtePulse 1.1s ease-in-out infinite; }
+        #qte-buzz-btn:hover { transform: scale(1.03); }
+        @keyframes qtePulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(238,50,51,0.5); }
+            50% { box-shadow: 0 0 0 12px rgba(238,50,51,0); }
+        }
+        body.low-perf #qte-buzz-btn { animation: none; }
 
         /* Result View */
         .result-container { width: 90%; max-width: 500px; padding: 40px; display: flex; flex-direction: column; align-items: center; }
@@ -695,13 +734,34 @@
     <div id="qte-modal" class="modal-overlay">
         <div class="modal-content glass">
             <div class="modal-header" style="color: var(--red);">冠军争夺战！</div>
-            <div id="qte-desc-type">有人手牌清空！请输入以下抢答码：</div>
+            <div id="qte-desc-type">有人手牌清空！请用下方数字键盘输入以下抢答码：</div>
             <div id="qte-word-display">UNO-???</div>
             <div id="qte-input-wrapper">
-                <span>UNO -</span>
-                <input type="text" id="qte-input" maxlength="3" autocomplete="off">
+                <div id="qte-code-box">
+                    <span class="qte-code-prefix">UNO-</span>
+                    <div class="qte-digits">
+                        <span class="qte-digit"></span>
+                        <span class="qte-digit"></span>
+                        <span class="qte-digit"></span>
+                    </div>
+                </div>
+                <div id="qte-keypad">
+                    <button type="button" class="qte-key" onclick="qteKey('1')">1</button>
+                    <button type="button" class="qte-key" onclick="qteKey('2')">2</button>
+                    <button type="button" class="qte-key" onclick="qteKey('3')">3</button>
+                    <button type="button" class="qte-key" onclick="qteKey('4')">4</button>
+                    <button type="button" class="qte-key" onclick="qteKey('5')">5</button>
+                    <button type="button" class="qte-key" onclick="qteKey('6')">6</button>
+                    <button type="button" class="qte-key" onclick="qteKey('7')">7</button>
+                    <button type="button" class="qte-key" onclick="qteKey('8')">8</button>
+                    <button type="button" class="qte-key" onclick="qteKey('9')">9</button>
+                    <button type="button" class="qte-key qte-key-action" onclick="qteClear()">清空</button>
+                    <button type="button" class="qte-key" onclick="qteKey('0')">0</button>
+                    <button type="button" class="qte-key qte-key-action" onclick="qteBackspace()">退格</button>
+                </div>
+                <input type="hidden" id="qte-input">
             </div>
-            <button id="qte-buzz-btn" class="primary" onclick="buzzQte()" style="width: 100%; padding: 18px; font-size: 20px; display: none;">抢 UNO！</button>
+            <button id="qte-buzz-btn" class="primary" onclick="buzzQte()" style="display: none;">抢 UNO！</button>
         </div>
     </div>
 
@@ -1702,9 +1762,42 @@
                 $('qte-input-wrapper').style.display = 'flex';
                 $('qte-buzz-btn').style.display = 'none';
                 $('qte-input').value = '';
+                renderQteDigits();
             }
             showModal('qte-modal');
-            if (!isSpectator && !qteIsButton) $('qte-input').focus();
+        }
+
+        // 渲染已输入的验证码数字到页面数字键盘上方的格子
+        function renderQteDigits() {
+            const val = $('qte-input').value;
+            document.querySelectorAll('#qte-code-box .qte-digit').forEach((slot, i) => {
+                slot.textContent = val[i] || '';
+                slot.classList.toggle('filled', i < val.length);
+                slot.classList.toggle('active', i === val.length);
+            });
+        }
+
+        // 页面数字键盘：输入一位数字（禁止系统键盘输入，仅通过此键盘）
+        function qteKey(digit) {
+            if (isSpectator) return;
+            const input = $('qte-input');
+            if (input.value.length >= 3) return;
+            input.value += digit;
+            renderQteDigits();
+            if (input.value.length === 3) submitQte();
+        }
+
+        // 退格：删除最后一位
+        function qteBackspace() {
+            const input = $('qte-input');
+            input.value = input.value.slice(0, -1);
+            renderQteDigits();
+        }
+
+        // 清空：清除已输入的全部数字
+        function qteClear() {
+            $('qte-input').value = '';
+            renderQteDigits();
         }
 
         function submitQte() {
@@ -1712,6 +1805,7 @@
             if(val.length === 3) {
                 sendWS('qte_submit', { word: `UNO-${val}` });
                 $('qte-input').value = '';
+                renderQteDigits();
             }
         }
 
@@ -1719,13 +1813,6 @@
             if (currentQteWord === null) return;
             sendWS('qte_submit', { word: `UNO-${currentQteWord}` });
         }
-
-
-        $('qte-input').addEventListener('input', function() {
-            if (this.value.trim().length === 3) {
-                submitQte();
-            }
-        });
 
         function returnLobby() {
             window.isTransitioningToResult = false;
