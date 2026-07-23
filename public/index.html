@@ -164,10 +164,14 @@
             display: flex; 
             justify-content: center; 
             align-items: center; 
-            padding: 15px 40px; 
+            padding: 15px 40px;
             gap: 40px;
             border-radius: 50px;
         }
+        .lobby-hdr-left { display: flex; align-items: center; gap: 10px; }
+        .lobby-hdr-label { font-size: 16px; white-space: nowrap; }
+        #lobby-room-id { font-weight: bold; color: var(--yellow); font-size: 24px; line-height: 1; white-space: nowrap; }
+        #lobby-version-tag { font-size: 14px; color: rgba(255,255,255,0.75); font-weight: bold; white-space: nowrap; }
         .player-list { 
             display: flex; 
             flex-wrap: wrap; 
@@ -519,15 +523,19 @@
             .action-btn-container { bottom: calc(var(--card-h) + 40px); width: 100px; height: 40px; }
             .action-btn { font-size: 14px; }
             
-            #lobby-view .header { 
-                padding: 10px 20px; 
-                gap: 15px; 
-                width: 95%; 
-                justify-content: space-around; 
+            #lobby-view .header {
+                padding: 10px 16px;
+                gap: 10px;
+                width: 95%;
+                justify-content: space-between;
             }
+            .lobby-hdr-left { gap: 6px; }
+            .lobby-hdr-label { font-size: 13px; }
+            #lobby-room-id { font-size: 20px; }
+            #lobby-version-tag { font-size: 12px; }
             #lobby-view .header button {
-                padding: 8px 12px;
-                font-size: 14px;
+                padding: 7px 10px;
+                font-size: 13px;
                 white-space: nowrap;
             }
             .player-list { 
@@ -590,10 +598,10 @@
 
     <div id="lobby-view" class="view">
         <div class="header glass">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 16px;">房间号:</span>
-                <span id="lobby-room-id" style="font-weight: bold; color: var(--yellow); font-size: 24px; line-height: 1;">---</span>
-                <span id="lobby-version-tag" style="font-size: 14px; color: rgba(255,255,255,0.75); font-weight: bold;"></span>
+            <div class="lobby-hdr-left">
+                <span class="lobby-hdr-label">房间号:</span>
+                <span id="lobby-room-id">---</span>
+                <span id="lobby-version-tag"></span>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;" id="lobby-btn-group">
                 <button onclick="copyRoomId()">复制</button>
