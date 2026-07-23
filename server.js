@@ -678,13 +678,13 @@ function triggerQTE(room, player) {
             const r = Math.random();
             let reaction; // 目标反应时间(ms)，参照人类
             if (isButton) {
-                if (r < 0.45) reaction = 200 + Math.random() * 220;      // 快 200–420ms（偶尔快手手速）
-                else if (r < 0.82) reaction = 420 + Math.random() * 430; // 中 420–850ms
-                else reaction = 850 + Math.random() * 850;               // 慢 850–1700ms
+                if (r < 0.45) reaction = 270 + Math.random() * 200;      // 快 270–470ms（下限 270ms）
+                else if (r < 0.82) reaction = 470 + Math.random() * 430; // 中 470–900ms
+                else reaction = 900 + Math.random() * 800;               // 慢 900–1700ms
             } else {
-                if (r < 0.4) reaction = 450 + Math.random() * 400;       // 快 450–850ms（含打字）
-                else if (r < 0.82) reaction = 850 + Math.random() * 750; // 中 850–1600ms
-                else reaction = 1600 + Math.random() * 1200;             // 慢 1600–2800ms
+                if (r < 0.4) reaction = 900 + Math.random() * 400;       // 快 900–1300ms（含打字，下限 900ms）
+                else if (r < 0.82) reaction = 1300 + Math.random() * 800;// 中 1300–2100ms
+                else reaction = 2100 + Math.random() * 1000;             // 慢 2100–3100ms
             }
             if (!isTarget) reaction += isButton ? 150 : 300;             // 抓捕者略慢
             const delay = QTE_REVEAL_BUFFER_MS + reaction;               // 换算成延迟
