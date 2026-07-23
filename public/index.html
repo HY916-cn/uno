@@ -405,9 +405,9 @@
 
         /* Rules Modal */
         #rules-modal .modal-content { width: 480px; max-width: 90vw; }
-        .rules-body { overflow-y: auto; max-height: 65vh; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; text-align: left; }
+        .rules-body { overflow-y: auto; max-height: 55vh; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; text-align: left; }
         /* 游戏说明标签页 */
-        .rules-tabs { display: flex; gap: 6px; position: sticky; top: 0; background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 8px 0; z-index: 2; }
+        .rules-tabs { display: flex; gap: 6px; padding: 8px 0; }
         .rules-tab { flex: 1; padding: 8px 4px; font-size: 13px; border-radius: 10px; }
         .rules-tab.active { background: var(--red); border-color: var(--red); font-weight: bold; }
         .rules-panel { display: none; flex-direction: column; gap: 18px; }
@@ -476,14 +476,10 @@
         body.low-perf #chat-toggle-btn,
         body.low-perf #bigscreen-modal,
         body.low-perf .modal-overlay,
-        body.low-perf #disconnect-modal,
-        body.low-perf .rules-tabs {
+        body.low-perf #disconnect-modal {
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
         }
-        /* 低性能模式无磨砂：说明标签栏改用不透明底避免透出滚动内容 */
-        body.low-perf .rules-tabs { background: #262626; }
-        /* 低性能模式：toast 的 fadeOut 动画会被压成瞬间完成导致直接透明消失，这里强制保持可见（仍由 JS 定时移除） */
         body.low-perf .toast { animation: none !important; opacity: 1 !important; }
 
         /* Mobile Responsiveness */
@@ -762,12 +758,12 @@
     <div id="rules-modal" class="modal-overlay" onclick="if(event.target === this) hideModal('rules-modal')">
         <div class="modal-content glass">
             <div class="modal-header">游戏说明</div>
+            <div class="rules-tabs">
+                <button type="button" class="rules-tab active" id="rtab-classic" onclick="switchRulesTab('classic')">原版</button>
+                <button type="button" class="rules-tab" id="rtab-flip" onclick="switchRulesTab('flip')">翻转版</button>
+                <button type="button" class="rules-tab" id="rtab-nomercy" onclick="switchRulesTab('nomercy')">毫不留情</button>
+            </div>
             <div class="rules-body">
-                <div class="rules-tabs">
-                    <button type="button" class="rules-tab active" id="rtab-classic" onclick="switchRulesTab('classic')">原版</button>
-                    <button type="button" class="rules-tab" id="rtab-flip" onclick="switchRulesTab('flip')">翻转版</button>
-                    <button type="button" class="rules-tab" id="rtab-nomercy" onclick="switchRulesTab('nomercy')">毫不留情</button>
-                </div>
 
                 <!-- 原版 -->
                 <div class="rules-panel active" id="rpanel-classic">
