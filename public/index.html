@@ -140,9 +140,15 @@
 
         /* Modals */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.3s; }
+        /* QTE 弹窗需盖在飞牌动画(z1000)之上，否则会被动画牌视觉遮住导致"点不动" */
+        #qte-modal.modal-overlay { z-index: 9500; }
         .modal-overlay.active { display: flex; opacity: 1; }
         .modal-content { padding: 30px; width: 320px; display: flex; flex-direction: column; gap: 20px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .modal-header { font-size: 24px; font-weight: bold; text-align: center; }
+        .mgmt-hint { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.4; min-height: 30px; margin-top: 6px; }
+        /* 换手玩家列表：悬浮不放大以免溢出触发横向滚动 */
+        #swap-target-list button:hover { transform: none; }
+        #swap-target-list button:active { transform: scale(0.97); }
         /* 版本三选一分段选择器 */
         .version-selector { display: flex; gap: 8px; }
         .version-btn { flex: 1; padding: 9px 4px; font-size: 13px; }
@@ -239,6 +245,7 @@
         
         .discard-area { position: relative; width: var(--card-w); height: var(--card-h); }
         .discard-card { position: absolute; top: 0; left: 0; box-shadow: none !important; }
+        .discard-stack { position: absolute; top: 0; left: 0; width: var(--card-w); height: var(--card-h); transform-origin: center; transition: opacity 0.25s ease; }
         
         .guide-text { 
             position: absolute; bottom: -100px; left: 50%; transform: translateX(-50%); 
@@ -269,19 +276,20 @@
         
         .action-btn-container { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--card-h) + 100px); width: 120px; height: 50px; z-index: 50; }
         .action-btn { width: 100%; height: 100%; position: absolute; top: 0; left: 0; display: none; font-size: 18px; font-weight: bold; z-index: 10; white-space: nowrap; }
+        /* 摸到指定色后引导点击跳过：高亮脉冲 */
+        .action-btn.skip-pulse { animation: pulse 0.9s ease-in-out infinite; }
+        body.low-perf .action-btn.skip-pulse { animation: none; box-shadow: 0 0 15px var(--yellow); }
         .action-btn.show { display: block; animation: popIn 0.3s; }
 
         /* QTE */
-        #qte-modal .modal-content { text-align: center; gap: 16px; width: 340px; max-width: 92vw; padding: 28px 26px; }
+        #qte-modal .modal-content { text-align: center; gap: 14px; width: 340px; max-width: 92vw; padding: 26px 24px; }
         #qte-modal .modal-header { letter-spacing: 2px; text-shadow: 0 2px 14px rgba(238,50,51,0.55); }
-        #qte-desc-type { font-size: 14px; color: rgba(255,255,255,0.72); line-height: 1.5; }
-        #qte-word-display {
-            font-size: 30px; font-weight: 800; color: var(--yellow); letter-spacing: 4px;
-            padding: 12px 0; margin: 2px 0;
-            background: rgba(255,217,0,0.08); border: 1px dashed rgba(255,217,0,0.4);
-            border-radius: var(--radius);
-        }
-        #qte-input-wrapper { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+        #qte-subtitle { font-size: 14px; color: rgba(255,255,255,0.75); line-height: 1.5; }
+        /* 输入模式：抢答码提示，随机三位数放大突出 */
+        .qte-target { font-size: 15px; color: rgba(255,255,255,0.7); display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+        .qte-target b { color: var(--yellow); font-size: 40px; font-weight: 900; letter-spacing: 5px; text-shadow: 0 2px 10px rgba(255,217,0,0.35); }
+        #qte-word-display { font-weight: 900; }
+        #qte-input-wrapper { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 
         /* 已输入验证码显示 */
         #qte-code-box { display: flex; align-items: center; justify-content: center; gap: 10px; }
@@ -307,9 +315,9 @@
         .qte-key-action { font-size: 16px; font-weight: 600; color: var(--yellow); background: rgba(255,217,0,0.08); border-color: rgba(255,217,0,0.28); }
         .qte-key-action:hover { background: rgba(255,217,0,0.18); }
 
-        /* 抢答按钮 */
-        #qte-buzz-btn { width: 100%; padding: 22px; font-size: 22px; font-weight: 800; letter-spacing: 3px; border-radius: 14px; animation: qtePulse 1.1s ease-in-out infinite; }
-        #qte-buzz-btn:hover { transform: scale(1.03); }
+        /* 抢答按钮：大号红色抢答器 */
+        #qte-buzz-btn { width: 100%; padding: 34px 22px; margin-top: 6px; font-size: 30px; font-weight: 900; letter-spacing: 4px; border-radius: 18px; animation: qtePulse 1.05s ease-in-out infinite; }
+        #qte-buzz-btn:hover { transform: scale(1.04); }
         @keyframes qtePulse {
             0%, 100% { box-shadow: 0 0 0 0 rgba(238,50,51,0.5); }
             50% { box-shadow: 0 0 0 12px rgba(238,50,51,0); }
@@ -321,14 +329,20 @@
         .winner-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .crown { font-size: 60px; line-height: 1; margin-bottom: 10px; animation: crownGlow 2s infinite ease-in-out; }
         .winner-name { font-size: 28px; font-weight: bold; color: var(--yellow); text-shadow: 0 0 15px rgba(255, 215, 0, 0.5); text-align: center; word-break: break-all; }
+        .winner-react { font-size: 13px; color: rgba(255,255,255,0.65); text-align: center; margin-top: 4px; }
+        .lb-react { font-size: 13px; color: rgba(255,255,255,0.55); white-space: nowrap; width: 92px; text-align: right; flex-shrink: 0; }
         .winner-subtitle { font-size: 14px; opacity: 0.7; margin-top: 5px; }
         .leaderboard { width: 100%; display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; max-height: 40vh; overflow-y: auto; padding-right: 5px; }
-        .lb-row { display: flex; align-items: center; background: rgba(0,0,0,0.3); padding: 12px 20px; border-radius: 8px; transition: background 0.2s; }
-        .lb-row:hover { background: rgba(255,255,255,0.1); }
-        .lb-rank { font-size: 18px; font-weight: bold; width: 30px; color: rgba(255,255,255,0.5); }
-        .lb-row:nth-child(1) .lb-rank { color: #C0C0C0; } 
-        .lb-row:nth-child(2) .lb-rank { color: #CD7F32; } 
-        .lb-name { flex: 1; font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+        /* 每行两个矩形：主矩形(名次/昵称/反应) + 牌数矩形，列对齐 */
+        .lb-row { display: flex; align-items: stretch; gap: 8px; }
+        .lb-box { background: rgba(0,0,0,0.3); border-radius: 8px; display: flex; align-items: center; transition: background 0.2s; }
+        .lb-box:hover { background: rgba(255,255,255,0.1); }
+        .lb-main { flex: 1; padding: 12px 18px; gap: 6px; min-width: 0; }
+        .lb-cards-box { padding: 12px 16px; min-width: 72px; justify-content: center; }
+        .lb-rank { font-size: 18px; font-weight: bold; width: 26px; color: rgba(255,255,255,0.5); flex-shrink: 0; }
+        .lb-row:nth-child(1) .lb-rank { color: #C0C0C0; }
+        .lb-row:nth-child(2) .lb-rank { color: #CD7F32; }
+        .lb-name { flex: 1; font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .lb-cards { font-size: 16px; color: var(--red); font-weight: bold; }
         .result-actions { display: flex; gap: 20px; width: 100%; justify-content: center; }
         @keyframes crownGlow { 0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); } 50% { filter: drop-shadow(0 0 25px rgba(255, 215, 0, 1)) drop-shadow(0 0 50px rgba(255, 255, 255, 0.5)); transform: scale(1.1); } }
@@ -338,6 +352,8 @@
         #chat-widget { position: fixed; right: -320px; bottom: 30px; bottom: calc(30px + env(safe-area-inset-bottom)); width: 300px; height: 400px; z-index: 90; transition: right 0.3s ease; display: none; flex-direction: column; padding: 15px; }
         #chat-widget.open { right: 30px; }
         #chat-toggle-btn { position: absolute; left: -90px; bottom: 0; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 24px; }
+        #rules-toggle-btn { position: absolute; left: -90px; bottom: 62px; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 22px; }
+        #room-mgmt-btn { position: absolute; left: -90px; bottom: 124px; width: 50px; height: 50px; border-radius: 50%; align-items: center; justify-content: center; padding: 0; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 22px; }
         .chat-badge { position: absolute; top: -5px; right: -5px; width: 16px; height: 16px; background: var(--red); border-radius: 50%; border: 2px solid #333; display: none; }
         .chat-badge.show { display: block; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; padding-right: 5px; font-size: 14px; }
@@ -365,18 +381,23 @@
         .game-player-card.eliminated { opacity: 0.4; filter: grayscale(0.9); }
         .gpc-eliminated-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-12deg); background: var(--red); color: #fff; font-size: 12px; font-weight: 900; padding: 2px 8px; border-radius: 6px; letter-spacing: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
         /* 版本 / 翻面 指示 */
-        #version-indicator .side-tag { font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-left: 2px; }
-        #version-indicator .side-light { background: rgba(255,255,255,0.85); color: #222; }
-        #version-indicator .side-dark { background: #1a1a1a; color: #fff; border: 1px solid rgba(255,255,255,0.4); }
-        /* 叠加罚牌横幅 + 认罚按钮 */
-        #stack-banner { display: none; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px; padding: 8px 14px; border-radius: var(--radius); background: rgba(238,50,51,0.9); color: #fff; font-weight: bold; font-size: 15px; box-shadow: 0 4px 12px rgba(238,50,51,0.4); }
+        /* 换牌动画期间隐藏我的真实手牌，动画结束再淡入新手牌（头像框另做位移动画） */
+        body.swap-animating .my-hand { opacity: 0; transition: opacity 0.15s ease; }
+        /* 淘汰动画：红底「淘汰」徽标中央渐显后缩小移动到玩家头像框（始终红底） */
+        .elim-fly { position: fixed; z-index: 9998; pointer-events: none; opacity: 0; transform: translate(-50%, -50%) scale(1);
+            transition: opacity 0.4s ease, left 0.75s cubic-bezier(0.5,0,0.4,1), top 0.75s cubic-bezier(0.5,0,0.4,1), transform 0.75s cubic-bezier(0.5,0,0.4,1); }
+        .elim-fly.show { opacity: 1; }
+        .elim-fly.move { transform: translate(-50%, -50%) scale(0.205); }
+        .elim-badge-big { background: var(--red); color: #fff; font-weight: 900; font-size: 58px; letter-spacing: 10px; padding: 10px 30px 10px 40px; border-radius: 30px; box-shadow: 0 12px 36px rgba(238,50,51,0.5); transform: rotate(-12deg); }
+        body.low-perf .elim-fly { transition: opacity 0.25s ease; }
+        /* 叠加罚牌横幅：绝对定位悬浮在出牌区正上方，显隐不影响布局 */
+        #stack-banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% - var(--card-h) / 2 - 34px)); z-index: 6; white-space: nowrap; display: none; align-items: center; justify-content: center; gap: 6px; padding: 7px 18px; border-radius: 30px; background: rgba(238,50,51,0.92); color: #fff; font-weight: bold; font-size: 15px; box-shadow: 0 4px 12px rgba(238,50,51,0.4); }
         #stack-banner.show { display: flex; }
-        #btn-take-stack { background: var(--red); border-color: var(--red); font-weight: bold; }
-        #btn-take-stack:hover { background: #ff4747; }
-        /* 翻面动画 */
-        @keyframes flipBoard { 0% { transform: perspective(800px) rotateY(0); } 50% { transform: perspective(800px) rotateY(90deg); } 100% { transform: perspective(800px) rotateY(0); } }
-        .game-center.flipping { animation: flipBoard 0.6s ease-in-out; }
-        body.low-perf .game-center.flipping { animation: none; }
+        /* 翻面动画：每张牌各自独立翻转 */
+        @keyframes cardFlip { 0% { transform: perspective(600px) rotateY(0deg); } 50% { transform: perspective(600px) rotateY(90deg); } 100% { transform: perspective(600px) rotateY(0deg); } }
+        .hand-card.card-flipping .card,
+        .discard-card.card-flipping { animation: cardFlip 0.5s var(--flip-delay, 0s) ease both; }
+        body.low-perf .card-flipping .card, body.low-perf .discard-card.card-flipping { animation: none; }
 
         /* Rules Modal */
         #rules-modal .modal-content { width: 480px; max-width: 90vw; }
@@ -391,6 +412,9 @@
         .rules-text { font-size: 13px; line-height: 1.8; color: rgba(255,255,255,0.85); }
         .rules-text b { color: white; }
         .rules-card-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; justify-content: center; }
+        .rules-cat { margin-top: 12px; }
+        .rules-cat-title { font-size: 13px; font-weight: bold; color: rgba(255,255,255,0.9); border-left: 3px solid var(--yellow); padding-left: 8px; }
+        .rules-cat-note { font-size: 11px; font-weight: normal; color: rgba(255,255,255,0.5); margin-left: 8px; }
         .rules-card-item { --card-w: 55px; --card-h: 82px; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: rgba(255,255,255,0.6); }
         .rules-card-item .card { font-size: 20px; }
         .rules-card-item .card-icon { width: 26px; height: 26px; }
@@ -452,6 +476,8 @@
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
         }
+        /* 低性能模式：toast 的 fadeOut 动画会被压成瞬间完成导致直接透明消失，这里强制保持可见（仍由 JS 定时移除） */
+        body.low-perf .toast { animation: none !important; opacity: 1 !important; }
 
         /* Mobile Responsiveness */
         @media (max-width: 600px) {
@@ -463,6 +489,8 @@
             #chat-widget { width: 250px; height: 300px; right: -250px; bottom: 60px; bottom: calc(60px + env(safe-area-inset-bottom)); }
             #chat-widget.open { right: 20px; }
             #chat-toggle-btn { width: 40px; height: 40px; bottom: 30px; left: -60px; font-size: 20px; }
+            #rules-toggle-btn { width: 40px; height: 40px; bottom: 80px; left: -60px; font-size: 18px; }
+            #room-mgmt-btn { width: 40px; height: 40px; bottom: 130px; left: -60px; font-size: 18px; }
 
             .cards-hero { transform: scale(0.8); margin-bottom: 20px; }
             h1 { font-size: 32px !important; margin-bottom: 20px !important; }
@@ -563,8 +591,9 @@
     <div id="lobby-view" class="view">
         <div class="header glass">
             <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 16px;">房间号:</span> 
+                <span style="font-size: 16px;">房间号:</span>
                 <span id="lobby-room-id" style="font-weight: bold; color: var(--yellow); font-size: 24px; line-height: 1;">---</span>
+                <span id="lobby-version-tag" style="font-size: 14px; color: rgba(255,255,255,0.75); font-weight: bold;"></span>
             </div>
             <div style="display: flex; gap: 10px; align-items: center;" id="lobby-btn-group">
                 <button onclick="copyRoomId()">复制</button>
@@ -585,13 +614,14 @@
             <div class="game-pill glass">
                 <span style="font-size:12px;opacity:0.7;">房间</span>
                 <span id="game-room-id" style="color:var(--yellow);">---</span>
+                <span id="game-version-tag" style="font-size:12px; color:rgba(255,255,255,0.8);"></span>
             </div>
             <div id="turn-indicator" class="game-pill glass">等待中...</div>
             <div id="direction-indicator" class="game-pill glass">方向: ↻</div>
-            <div id="version-indicator" class="game-pill glass" style="display:none;"></div>
         </div>
         <div class="game-players-row" id="game-players"></div>
         <div class="game-center">
+            <div id="stack-banner"></div>
             <div class="deck-area" id="deck-pile" onclick="drawCard()">
                 <div class="card card-back deck-card"></div>
                 <div class="card card-back deck-card"></div>
@@ -606,10 +636,8 @@
             <div class="discard-area" id="discard-pile"></div>
         </div>
         <div class="game-bottom">
-            <div id="stack-banner"></div>
             <div class="my-hand" id="my-hand"></div>
             <div class="action-btn-container">
-                <button id="btn-take-stack" class="action-btn" style="display:none;" onclick="takeStack()">认罚接牌</button>
                 <button id="btn-skip" class="action-btn" onclick="skipTurn()">跳过</button>
                 <button id="btn-urge" class="action-btn primary" onclick="urgeTurn()">催促</button>
             </div>
@@ -623,6 +651,7 @@
                 <div class="crown">👑</div>
                 <div class="winner-name" id="winner-name">---</div>
                 <div class="winner-subtitle">胜出者</div>
+                <div class="winner-react" id="winner-react"></div>
             </div>
             <div class="leaderboard" id="result-leaderboard">
             </div>
@@ -644,7 +673,7 @@
                     <button type="button" id="ver-flip" class="version-btn" onclick="setGameVersion('flip')">翻转版</button>
                     <button type="button" id="ver-nomercy" class="version-btn" onclick="setGameVersion('nomercy')">毫不留情</button>
                 </div>
-                <div id="version-hint" style="font-size:11px; color:rgba(255,255,255,0.55); margin-top:6px; line-height:1.4;">经典 UNO：跳过 / 反转 / +2 / +4 / 万能牌。</div>
+                <div id="version-hint" style="font-size:11px; color:rgba(255,255,255,0.55); margin-top:6px; line-height:1.4; min-height:32px;">经典 UNO：跳过 / 反转 / +2 / +4 / 万能牌。</div>
             </div>
             <div class="form-group">
                 <label>昵称</label>
@@ -736,7 +765,7 @@
                         <div class="rules-text">
                             每人手牌 7 张，轮流出牌。出的牌必须与牌堆顶的牌<b>颜色相同</b>、<b>数字/类型相同</b>，或是<b>黑色万能牌</b>，否则只能摸一张牌；摸到的牌若能出可以立即出，否则轮到下家。谁先把手牌全部出完，谁就掌握了胜利的主动权。
                         </div>
-                        <div class="rules-card-row" id="rules-cards-classic"></div>
+                        <div id="rules-cats-classic"></div>
                     </div>
                     <div>
                         <div class="rules-section-title">功能牌效果</div>
@@ -757,7 +786,7 @@
                         <div class="rules-text">
                             全副牌<b>双面印刷</b>：浅色面（红黄蓝绿）与深色面（粉青橙紫）。开局在浅色面进行，一旦有人打出 <b>Flip 翻转牌</b>，整副牌（含所有人手牌）翻到深色面，深色行动牌惩罚更狠；再打 Flip 翻回浅色面。出牌规则同经典：与顶牌<b>数字 / 颜色 / 图案</b>之一相符，或打万能牌。
                         </div>
-                        <div class="rules-card-row" id="rules-cards-flip"></div>
+                        <div id="rules-cats-flip"></div>
                     </div>
                     <div>
                         <div class="rules-section-title">浅色面行动牌</div>
@@ -787,7 +816,7 @@
                         <div class="rules-text">
                             共 168 张，行动牌更多更狠。出牌规则同经典，另有 4 条特殊规则与多种超强行动牌。目标：率先出完手牌，或把其他人全部淘汰到只剩自己。
                         </div>
-                        <div class="rules-card-row" id="rules-cards-nomercy"></div>
+                        <div id="rules-cats-nomercy"></div>
                     </div>
                     <div>
                         <div class="rules-section-title">四条特殊规则</div>
@@ -852,20 +881,48 @@
         </div>
     </div>
 
-    <div id="swap-modal" class="modal-overlay">
-        <div class="modal-content glass" style="width: 300px;">
-            <div class="modal-header" style="color: var(--yellow);">7 号换手</div>
-            <div style="font-size:14px; color:rgba(255,255,255,0.8); text-align:center;">选择一名玩家与其交换整手牌：</div>
-            <div id="swap-target-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+    <div id="swap-modal" class="modal-overlay" onclick="if(event.target === this) cancelSwapModal()">
+        <div class="modal-content glass" style="width: 260px;">
+            <div class="modal-header">选择交换玩家</div>
+            <div id="swap-target-list" style="display:flex; flex-direction:column; gap:10px; height:230px; overflow-y:auto; overflow-x:hidden; padding:2px 4px;"></div>
+        </div>
+    </div>
+
+    <div id="room-mgmt-modal" class="modal-overlay" onclick="if(event.target === this) hideModal('room-mgmt-modal')">
+        <div class="modal-content glass">
+            <div class="modal-header">房间管理</div>
+            <div class="form-group">
+                <label>游戏版本</label>
+                <div class="version-selector">
+                    <button type="button" id="mgmt-ver-classic" class="version-btn" onclick="setMgmtVersion('classic')">原版</button>
+                    <button type="button" id="mgmt-ver-flip" class="version-btn" onclick="setMgmtVersion('flip')">翻转版</button>
+                    <button type="button" id="mgmt-ver-nomercy" class="version-btn" onclick="setMgmtVersion('nomercy')">毫不留情</button>
+                </div>
+                <div id="mgmt-version-hint" class="mgmt-hint"></div>
+            </div>
+            <div class="form-group">
+                <label>抢答方式</label>
+                <div class="version-selector">
+                    <button type="button" id="mgmt-qte-type" class="version-btn" onclick="setMgmtQte('type')">输入</button>
+                    <button type="button" id="mgmt-qte-button" class="version-btn" onclick="setMgmtQte('button')">按钮</button>
+                </div>
+                <div id="mgmt-qte-hint" class="mgmt-hint"></div>
+            </div>
+            <button class="primary" style="width: 100%;" onclick="hideModal('room-mgmt-modal')">完成</button>
         </div>
     </div>
 
     <div id="qte-modal" class="modal-overlay">
         <div class="modal-content glass">
-            <div class="modal-header" style="color: var(--red);">冠军争夺战！</div>
-            <div id="qte-desc-type">有人手牌清空！请用下方数字键盘输入以下抢答码：</div>
-            <div id="qte-word-display">UNO-???</div>
+            <div class="modal-header" style="color: var(--red);">冠军争夺战</div>
+            <div id="qte-subtitle">有人手牌清空，抢下这一局！</div>
+
+            <!-- 按钮模式 -->
+            <button id="qte-buzz-btn" class="primary" onclick="buzzQte()" style="display: none;">抢 UNO！</button>
+
+            <!-- 输入模式 -->
             <div id="qte-input-wrapper">
+                <div class="qte-target">抢答码　<b id="qte-word-display">UNO-???</b></div>
                 <div id="qte-code-box">
                     <span class="qte-code-prefix">UNO-</span>
                     <div class="qte-digits">
@@ -890,7 +947,6 @@
                 </div>
                 <input type="hidden" id="qte-input">
             </div>
-            <button id="qte-buzz-btn" class="primary" onclick="buzzQte()" style="display: none;">抢 UNO！</button>
         </div>
     </div>
 
@@ -915,7 +971,9 @@
 
     <!-- Chat Widget -->
     <div id="chat-widget" class="glass">
-        <button id="chat-toggle-btn" onclick="toggleChat()">💬<div class="chat-badge" id="chat-badge"></div></button>
+        <button id="chat-toggle-btn" onclick="toggleChat()" title="聊天"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><div class="chat-badge" id="chat-badge"></div></button>
+        <button id="rules-toggle-btn" onclick="openRulesModal()" title="游戏说明"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></button>
+        <button id="room-mgmt-btn" onclick="openRoomMgmt()" title="房间管理" style="display:none;"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         <div style="font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">房间聊天</div>
         <div class="chat-messages" id="chat-messages"></div>
         <div class="chat-input-area">
@@ -939,12 +997,12 @@
         const SVGS = {
             'skip': `<svg class="card-icon" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" stroke="currentColor" stroke-width="12" fill="none"/><line x1="22" y1="22" x2="78" y2="78" stroke="currentColor" stroke-width="12"/></svg>`,
             'reverse': `<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14V9a4 4 0 0 1 4-4h14"/><path d="m17 1 4 4-4 4m4 1v5a4 4 0 0 1-4 4H3"/><path d="m7 23-4-4 4-4"/></svg>`,
-            // 翻转牌：一半色一半白的圆 + 弧形箭头，象征"翻到另一面"
-            'flip': `<svg class="card-icon" viewBox="0 0 100 100"><circle cx="50" cy="54" r="32" fill="#fff" stroke="currentColor" stroke-width="5"/><path d="M50 22 A32 32 0 0 1 50 86 Z" fill="currentColor"/><g fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 26 A34 34 0 0 1 74 18"/><path d="M74 18 L62 13 M74 18 L70 30"/></g></svg>`,
+            // 翻转牌：一张实心牌(换深色) + 一张空心牌(换浅色) 叠放
+            'flip': `<svg class="card-icon" viewBox="0 0 100 100"><rect x="22" y="28" width="38" height="52" rx="6" fill="currentColor" stroke="#fff" stroke-width="3" transform="rotate(-11 41 54)"/><rect x="42" y="22" width="38" height="52" rx="6" fill="#fff" stroke="currentColor" stroke-width="4" transform="rotate(11 61 48)"/></svg>`,
             // 全员跳过：媒体"快进/跳过"符号（双三角 + 竖条）
             'skip-all': `<svg class="card-icon" viewBox="0 0 100 100" fill="currentColor"><path d="M12 22 L48 50 L12 78 Z"/><path d="M47 22 L83 50 L47 78 Z"/><rect x="85" y="22" width="10" height="56" rx="3"/></svg>`,
-            // 清色：一对手牌 + 向下大箭头，象征"弃掉整组同色牌"
-            'discard-all': `<svg class="card-icon" viewBox="0 0 100 100"><g fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"><rect x="19" y="12" width="29" height="40" rx="4"/><rect x="52" y="12" width="29" height="40" rx="4"/></g><path d="M50 56 L50 90 M32 74 L50 92 L68 74" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+            // 清色：一张牌 + 上方向上箭头（把这组牌清出去）
+            'discard-all': `<svg class="card-icon" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="33" y="44" width="34" height="46" rx="5" stroke-width="6"/><path d="M50 40 L50 10 M35 25 L50 8 L65 25" stroke-width="8"/></svg>`
         };
 
         // 彩色加牌类，用标准 "+N" 数字（与原版 +2/+4 一致）
@@ -952,15 +1010,15 @@
         // 黑色万能牌上叠加的 "+N" 数字（纯数字，非文字）
         const WILD_LABEL = { 'wild': '', '+4': '+4', 'wild+6': '+6', 'wild+10': '+10', 'wild+2': '+2' };
 
-        // 白底四色转盘 + 向下箭头：表示"指定颜色，下家持续抽牌直到该色"（选色轮盘 / 万能指定色抽通用）
-        const COLOR_WHEEL_DRAW = `<circle cx="50" cy="40" r="29" fill="#fff" stroke="#1a1a1a" stroke-width="3.5"/><g stroke="#fff" stroke-width="2"><path d="M50 40 L50 13 A27 27 0 0 1 77 40 Z" fill="#d72600"/><path d="M50 40 L77 40 A27 27 0 0 1 50 67 Z" fill="#0066cc"/><path d="M50 40 L50 67 A27 27 0 0 1 23 40 Z" fill="#00a000"/><path d="M50 40 L23 40 A27 27 0 0 1 50 13 Z" fill="#f0b000"/></g><circle cx="50" cy="40" r="8" fill="#fff" stroke="#1a1a1a" stroke-width="2.5"/><path d="M50 66 L50 90 M37 79 L50 92 L63 79" fill="none" stroke="#1a1a1a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/><path d="M50 66 L50 90 M37 79 L50 92 L63 79" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+        // 侧视牌堆(长方体) + 向上箭头：表示"从牌堆持续摸牌"（选色轮盘 / 万能指定色抽通用）
+        const DECK_DRAW = `<g stroke="#1a1a1a" stroke-width="3"><rect x="28" y="52" width="44" height="10" rx="3" fill="#fff"/><rect x="28" y="62" width="44" height="10" rx="3" fill="#dcdcdc"/><rect x="28" y="72" width="44" height="10" rx="3" fill="#fff"/></g><path d="M50 46 L50 14 M35 28 L50 12 L65 28" fill="none" stroke="#1a1a1a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/><path d="M50 46 L50 14 M35 28 L50 12 L65 28" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
         // 黑色万能牌上叠加的图标
         const WILD_ICON = {
-            'wild-roulette': COLOR_WHEEL_DRAW,
-            'wild-drawcolor': COLOR_WHEEL_DRAW,
-            // 万能反转+4：白底圆盘 + 反向环形箭头 + "+4"
-            'wild-rev4': `<circle cx="50" cy="50" r="36" fill="#fff" stroke="#1a1a1a" stroke-width="3.5"/><g fill="none" stroke="#1a1a1a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 40 A29 29 0 0 1 68 23"/><path d="M69 11 L71 25 L57 24"/><path d="M78 60 A29 29 0 0 1 32 77"/><path d="M31 89 L29 75 L43 76"/></g><text x="50" y="50" dy=".35em" font-size="34" font-family="Arial Black, Impact, sans-serif" font-weight="bold" text-anchor="middle" fill="#1a1a1a">+4</text>`
+            'wild-roulette': DECK_DRAW,
+            'wild-drawcolor': DECK_DRAW,
+            // 万能反转+4：大号原版反转箭头（环绕）与特殊牌 "+4" 重叠
+            'wild-rev4': `<g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M11 46 A40 40 0 0 1 64 11" stroke="#1a1a1a" stroke-width="15"/><path d="M64 11 L50 7 M64 11 L68 25" stroke="#1a1a1a" stroke-width="15"/><path d="M89 54 A40 40 0 0 1 36 89" stroke="#1a1a1a" stroke-width="15"/><path d="M36 89 L50 93 M36 89 L32 75" stroke="#1a1a1a" stroke-width="15"/><path d="M11 46 A40 40 0 0 1 64 11" stroke="#fff" stroke-width="8"/><path d="M64 11 L50 7 M64 11 L68 25" stroke="#fff" stroke-width="8"/><path d="M89 54 A40 40 0 0 1 36 89" stroke="#fff" stroke-width="8"/><path d="M36 89 L50 93 M36 89 L32 75" stroke="#fff" stroke-width="8"/></g><text x="50" y="50" dy=".35em" font-size="40" font-family="Arial Black, Impact, sans-serif" font-weight="bold" text-anchor="middle" fill="none" stroke="#1a1a1a" stroke-width="9" stroke-linejoin="round">+4</text><text x="50" y="50" dy=".35em" font-size="40" font-family="Arial Black, Impact, sans-serif" font-weight="bold" text-anchor="middle" fill="#fff">+4</text>`
         };
 
         function plusTextSVG(txt) {
@@ -1008,10 +1066,46 @@
                     </div>`;
         }
 
-        function renderRuleCards(containerId, cards) {
-            $(containerId).innerHTML = cards.map(c =>
-                `<div class="rules-card-item">${getCardHTML(c)}<span>${c.label}</span></div>`
-            ).join('');
+        // 统一命名规范
+        const CARD_NAME = {
+            'skip': '跳过', 'reverse': '反转', '+2': '加二', '+4': '加四', 'wild': '万能牌',
+            'draw-one': '抽一', 'draw-five': '抽五', 'skip-all': '全员跳过', 'discard-all': '清色', 'flip': '翻转',
+            'wild+2': '万能加二', 'wild-drawcolor': '万能选色抽牌',
+            'wild-rev4': '万能反转加四', 'wild+6': '万能加六', 'wild+10': '万能加十', 'wild-roulette': '万能选色抽牌'
+        };
+        function cardDisplayName(c) {
+            if (/^[0-9]$/.test(c.type)) return '数字 ' + c.type;
+            return CARD_NAME[c.type] || c.type;
+        }
+
+        // 分版本、分类的牌面一览（展示全部特殊牌，含与原版重复的）
+        const RULE_CATEGORIES = {
+            classic: [
+                { title: '数字牌', note: '四色 0-9', cards: [{ color: 'red', type: '3' }, { color: 'yellow', type: '5' }, { color: 'blue', type: '7' }, { color: 'green', type: '9' }] },
+                { title: '行动牌', cards: [{ color: 'red', type: 'skip' }, { color: 'yellow', type: 'skip' }, { color: 'blue', type: 'reverse' }, { color: 'green', type: 'reverse' }, { color: 'red', type: '+2' }, { color: 'green', type: '+2' }] },
+                { title: '万能牌', cards: [{ color: 'black', type: 'wild' }, { color: 'black', type: '+4' }] }
+            ],
+            flip: [
+                { title: '浅色面 · 数字牌', note: '红黄蓝绿 1-9', cards: [{ color: 'red', type: '3' }, { color: 'yellow', type: '5' }, { color: 'blue', type: '7' }, { color: 'green', type: '9' }] },
+                { title: '浅色面 · 行动牌', cards: [{ color: 'blue', type: 'draw-one' }, { color: 'green', type: 'skip' }, { color: 'yellow', type: 'reverse' }, { color: 'red', type: 'flip' }] },
+                { title: '浅色面 · 万能牌', cards: [{ color: 'black', type: 'wild' }, { color: 'black', type: 'wild+2' }] },
+                { title: '深色面 · 数字牌', note: '粉青橙紫 1-9', cards: [{ color: 'pink', type: '3' }, { color: 'teal', type: '5' }, { color: 'orange', type: '7' }, { color: 'purple', type: '9' }] },
+                { title: '深色面 · 行动牌', cards: [{ color: 'teal', type: 'draw-five' }, { color: 'orange', type: 'skip-all' }, { color: 'pink', type: 'reverse' }, { color: 'purple', type: 'flip' }] },
+                { title: '深色面 · 万能牌', cards: [{ color: 'black', type: 'wild' }, { color: 'black', type: 'wild-drawcolor' }] }
+            ],
+            nomercy: [
+                { title: '数字牌', note: '四色 0-9（打 0 全体传手、打 7 换手）', cards: [{ color: 'red', type: '0' }, { color: 'blue', type: '7' }, { color: 'green', type: '3' }, { color: 'yellow', type: '9' }] },
+                { title: '行动牌', cards: [{ color: 'yellow', type: 'skip' }, { color: 'green', type: 'reverse' }, { color: 'red', type: '+2' }, { color: 'blue', type: '+4' }, { color: 'green', type: 'discard-all' }, { color: 'yellow', type: 'skip-all' }] },
+                { title: '万能牌', cards: [{ color: 'black', type: 'wild-rev4' }, { color: 'black', type: 'wild+6' }, { color: 'black', type: 'wild+10' }, { color: 'black', type: 'wild-roulette' }] }
+            ]
+        };
+        function renderRuleCategories(containerId, cats) {
+            $(containerId).innerHTML = cats.map(cat => `
+                <div class="rules-cat">
+                    <div class="rules-cat-title">${cat.title}${cat.note ? `<span class="rules-cat-note">${cat.note}</span>` : ''}</div>
+                    <div class="rules-card-row">${cat.cards.map(c => `<div class="rules-card-item">${getCardHTML(c)}<span>${cardDisplayName(c)}</span></div>`).join('')}</div>
+                </div>
+            `).join('');
         }
 
         function switchRulesTab(v) {
@@ -1022,34 +1116,9 @@
         }
 
         function openRulesModal() {
-            renderRuleCards('rules-cards-classic', [
-                { color: 'red', type: '5', label: '数字牌' },
-                { color: 'yellow', type: 'skip', label: '跳过' },
-                { color: 'blue', type: 'reverse', label: '反转' },
-                { color: 'green', type: '+2', label: '+2' },
-                { color: 'black', type: 'wild', label: '万能牌' },
-                { color: 'black', type: '+4', label: '+4' }
-            ]);
-            renderRuleCards('rules-cards-flip', [
-                { color: 'blue', type: 'draw-one', label: '抽一张·浅' },
-                { color: 'green', type: 'skip', label: '跳过·浅' },
-                { color: 'yellow', type: 'flip', label: '翻转' },
-                { color: 'black', type: 'wild+2', label: '万能+2·浅' },
-                { color: 'teal', type: 'draw-five', label: '抽五张·深' },
-                { color: 'orange', type: 'skip-all', label: '全员跳过·深' },
-                { color: 'purple', type: '7', label: '数字牌·深' },
-                { color: 'black', type: 'wild-drawcolor', label: '指定色抽·深' }
-            ]);
-            renderRuleCards('rules-cards-nomercy', [
-                { color: 'red', type: '7', label: '7 换手' },
-                { color: 'blue', type: '0', label: '0 传手' },
-                { color: 'green', type: 'discard-all', label: '清色' },
-                { color: 'yellow', type: 'skip-all', label: '全员跳过' },
-                { color: 'red', type: '+4', label: '+4' },
-                { color: 'black', type: 'wild-rev4', label: '反转+4' },
-                { color: 'black', type: 'wild+6', label: '+6' },
-                { color: 'black', type: 'wild-roulette', label: '选色轮盘' }
-            ]);
+            renderRuleCategories('rules-cats-classic', RULE_CATEGORIES.classic);
+            renderRuleCategories('rules-cats-flip', RULE_CATEGORIES.flip);
+            renderRuleCategories('rules-cats-nomercy', RULE_CATEGORIES.nomercy);
             const initTab = (currentRoom && currentRoom.version) ? currentRoom.version : (selectedGameVersion || 'classic');
             switchRulesTab(initTab);
             showModal('rules-modal');
@@ -1062,6 +1131,54 @@
             document.getElementById('toast-container').appendChild(t);
             setTimeout(() => t.remove(), 3000);
         }
+
+        // 淘汰动画：红底「淘汰」徽标在屏幕中央渐显，停留后缩小移动到该玩家头像框，动画结束后玩家框内才出现红底淘汰徽标
+        function showEliminationBanner(name, playerId, isMe) {
+            if (!window.__elimAnimating) window.__elimAnimating = new Set();
+            window.__elimAnimating.add(playerId);
+            if (currentRoom) renderRoom(currentRoom.state); // 先隐藏该玩家框的淘汰徽标
+            const o = document.createElement('div');
+            o.className = 'elim-fly';
+            o.style.left = (window.innerWidth / 2) + 'px';
+            o.style.top = (window.innerHeight * 0.44) + 'px';
+            o.innerHTML = `<div class="elim-badge-big">淘汰</div>`;
+            document.body.appendChild(o);
+            requestAnimationFrame(() => o.classList.add('show'));
+            setTimeout(() => {
+                const hud = $(`player-hud-${playerId}`);
+                if (hud) {
+                    const r = hud.getBoundingClientRect();
+                    o.style.left = (r.left + r.width / 2) + 'px';
+                    o.style.top = (r.top + r.height / 2) + 'px';
+                    o.classList.add('move');
+                }
+            }, 1150);
+            setTimeout(() => {
+                o.remove();
+                if (window.__elimAnimating) window.__elimAnimating.delete(playerId);
+                if (currentRoom) renderRoom(currentRoom.state); // 动画结束，玩家框内出现红底淘汰徽标
+            }, 2000);
+        }
+
+        // 房主为空位一键添加AI
+        function addBot() { sendWS('add_bot'); }
+
+        // 房间管理：房主在等待页面修改 版本 / 抢答方式（改动即时下发）
+        const MGMT_QTE_HINTS = {
+            type: '输入模式：抢先打出弹窗上的 3 位数字验证码才算抢到，比拼手速与反应。',
+            button: '按钮模式：抢先按下按钮即可，没有打字门槛，更快更直接。'
+        };
+       function refreshMgmtUI() {
+           if (!currentRoom) return;
+           ['classic', 'flip', 'nomercy'].forEach(v => $('mgmt-ver-' + v).classList.toggle('primary', currentRoom.version === v));
+            $('mgmt-qte-type').classList.toggle('primary', currentRoom.qteMode === 'type');
+            $('mgmt-qte-button').classList.toggle('primary', currentRoom.qteMode === 'button');
+            $('mgmt-version-hint').innerText = VERSION_HINTS[currentRoom.version] || '';
+            $('mgmt-qte-hint').innerText = MGMT_QTE_HINTS[currentRoom.qteMode] || '';
+        }
+        function openRoomMgmt() { refreshMgmtUI(); showModal('room-mgmt-modal'); }
+        function setMgmtVersion(v) { sendWS('update_room_settings', { version: v }); }
+        function setMgmtQte(m) { sendWS('update_room_settings', { qteMode: m }); }
 
         let publicRoomsInterval = null;
         let lastPublicRoomsHtml = '';
@@ -1117,6 +1234,7 @@
         let isCheatMode = false;
         let isPendingCheatColor = false;
         let isSpectator = false;
+        let isEliminatedSelf = false;
         let spectatorTargetId = null;
         let currentQteWord = null;
         let lastHandCounts = {}; 
@@ -1212,6 +1330,7 @@
                 }, 10000);
             };
             ws.onclose = () => {
+                if (window.__kicked) return; // 被踢出：不弹"连接断开"
                 showModal('disconnect-modal');
             };
             ws.onmessage = (e) => {
@@ -1366,7 +1485,10 @@
                     myId = data.myId || myId;
                     hasDrawnThisTurn = data.hasDrawnThisTurn || false;
                     isSpectator = data.isSpectator || false;
-                    spectatorTargetId = data.spectatorTargetId || null;
+                   isEliminatedSelf = data.eliminatedSelf || false;
+                   spectatorTargetId = data.spectatorTargetId || null;
+                    // 被淘汰：手牌区清空，后续观战显示牌背
+                    if (isEliminatedSelf) myHand = [];
                     
                     if ($('join-room-modal').classList.contains('active')) {
                         hideModal('join-room-modal');
@@ -1385,17 +1507,24 @@
                     }
                     break;
                 case 'draw_card':
-                    setTimeout(() => animateDrawCard(data.playerId, data.count), 100);
+                    // 被罚抽固定张数导致淘汰：被淘汰者本人不播抽牌动画（其他人照常）
+                    if (data.willEliminate && data.playerId === myId) break;
+                    setTimeout(() => animateDrawCard(data.playerId, data.count, data.simultaneous, data.isDeal), 100);
                     break;
                 case 'play_card':
                     animatePlayCard(data.playerId, data.card, data.declaredColor);
+                    break;
+                case 'discard_all':
+                    animateDiscardAll(data);
                     break;
                 case 'reshuffle':
                     showToast('牌堆耗尽，正在重新洗牌...', 'info');
                     break;
                 case 'urged':
-                    document.body.style.animation = 'shake 0.5s';
-                    setTimeout(()=>document.body.style.animation='', 500);
+                    if (!lowPerfMode) {   // 低性能模式不抖屏
+                        document.body.style.animation = 'shake 0.5s';
+                        setTimeout(()=>document.body.style.animation='', 500);
+                    }
                     showToast('有人催促你快点出牌！', 'info');
                     playUrgeSound();
                     break;
@@ -1427,11 +1556,27 @@
                     openColorPicker();
                     break;
                 case 'flip_side':
-                    showToast(data.side === 'dark' ? '翻到深色面！行动牌更狠' : '翻回浅色面', 'info');
+                    // 记录翻面前的牌面，动画翻到一半时才切换到新面
+                    window.__flipOldFaces = {};
+                    myHand.forEach(c => { window.__flipOldFaces[c.id] = { color: c.color, type: c.type }; });
                     triggerFlipAnim();
                     break;
                 case 'player_eliminated':
-                    showToast(`${data.name} 手牌达 25 张，被淘汰！`, 'error');
+                    if (data.skipAnim) break; // 最后一次淘汰：不播飞行动画，玩家框直接显示淘汰徽标（靠 room_state 渲染）
+                    showEliminationBanner(data.name, data.playerId, data.playerId === myId);
+                    break;
+                case 'kicked':
+                    window.__kicked = true;
+                    showToast(data.reason || '你已被房主踢出房间', 'error');
+                    setTimeout(() => location.reload(), 1600);
+                    break;
+                case 'hand_swap':
+                    animateHandSwap(data.aId, data.bId);
+                    window.__skipOppAnim = true;
+                    break;
+                case 'hand_pass':
+                    animateHandPass(data.order, data.direction);
+                    window.__skipOppAnim = true;
                     break;
                 case 'hands_reset':
                     window.__skipOppAnim = true;
@@ -1456,7 +1601,7 @@
             let newHtml = '';
             
             if (rooms.length === 0) {
-                newHtml = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size:14px; padding: 10px;">目前无非隐藏房间</div>';
+                newHtml = '<div style="text-align:center; color:rgba(255,255,255,0.5); font-size:14px; padding: 10px;">目前无公开房间</div>';
             } else {
                 newHtml = rooms.map(r => `
                     <div style="display:flex; justify-content:space-between; align-items:center; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: background 0.2s;" 
@@ -1486,13 +1631,20 @@
                 const header = document.querySelector('#lobby-view .header');
                 if (header) header.style.display = 'none';
                 $('chat-toggle-btn').style.display = 'none';
+                $('rules-toggle-btn').style.display = 'none';
+                $('room-mgmt-btn').style.display = 'none';
                 $('btn-ready').style.display = 'none';
             } else {
                 const header = document.querySelector('#lobby-view .header');
                 if (header) header.style.display = 'flex';
                 $('chat-toggle-btn').style.display = 'flex';
+                $('rules-toggle-btn').style.display = 'flex';
                 $('btn-ready').style.display = 'block';
             }
+            // 房间管理球：仅房主在等待页面显示
+            $('room-mgmt-btn').style.display = (!currentRoom.isBigScreen && currentRoom.state === 'lobby' && !isSpectator
+                && (currentRoom.players.find(p => p.id === myId) || {}).isHost) ? 'flex' : 'none';
+            if ($('room-mgmt-modal').classList.contains('active')) refreshMgmtUI();
             
             // 大屏模式：切屏弹窗
             if (currentRoom.isBigScreen && currentRoom.state === 'switching_turn') {
@@ -1515,6 +1667,7 @@
 
                 const updateLobbyDOM = () => {
                     $('lobby-room-id').innerText = currentRoom.id;
+                    $('lobby-version-tag').innerText = VERSION_LABELS[currentRoom.version] || '原版';
                     let playersHtml = '';
                     for (let i = 0; i < currentRoom.maxPlayers; i++) {
                         const p = currentRoom.players[i];
@@ -1540,9 +1693,11 @@
                                 </div>
                             `;
                         } else {
+                            // 房主可点击空位一键添加AI占位
+                            const canAdd = isHost && !currentRoom.isBigScreen;
                             playersHtml += `
-                                <div class="player-item empty glass-no-shadow">
-                                    <div style="font-size: 14px; letter-spacing: 2px;">等待加入...</div>
+                                <div class="player-item empty glass-no-shadow" ${canAdd ? `onclick="addBot()" style="cursor:pointer;"` : ''}>
+                                    <div style="font-size: 14px; letter-spacing: 2px;">${canAdd ? '➕ 添加AI' : '等待加入...'}</div>
                                 </div>
                             `;
                         }
@@ -1570,10 +1725,16 @@
                 const updateResultDOM = () => {
                     const res = currentRoom.results;
                     if (!res) return;
+                    const byElim = !!currentRoom.resultsByElimination;
+                    const reactText = (ms) => (typeof ms === 'number') ? `反应 ${ms}ms` : '反应 —';
                     $('winner-name').innerText = res[0].name;
+                    // 冠军的反应时间：QTE取胜 或 淘汰取胜 都展示
+                    $('winner-react').innerText = (typeof res[0].reactionMs === 'number') ? reactText(res[0].reactionMs) : '';
                     let listHtml = '';
                     for(let i=1; i<res.length; i++) {
-                        listHtml += `<div class="lb-row"><span class="lb-rank">${i+1}</span><span class="lb-name">${escapeHtml(res[i].name)}</span><span class="lb-cards">${res[i].handCount}张</span></div>`;
+                        // 淘汰取胜时非冠军不显示反应时间；QTE取胜时都显示
+                        const rt = byElim ? '' : `<span class="lb-react">${reactText(res[i].reactionMs)}</span>`;
+                        listHtml += `<div class="lb-row"><div class="lb-box lb-main"><span class="lb-rank">${i+1}</span><span class="lb-name">${escapeHtml(res[i].name)}</span>${rt}</div><div class="lb-box lb-cards-box"><span class="lb-cards">${res[i].eliminated ? '被淘汰' : res[i].handCount + '张'}</span></div></div>`;
                     }
                     $('result-leaderboard').innerHTML = listHtml;
                     $('btn-result-continue').style.display = 'block';
@@ -1673,20 +1834,8 @@
                 }
                 $('direction-indicator').innerText = `方向: ${currentRoom.direction === 1 ? '>>>右>>>' : '<<<左<<<'}`;
 
-                // 版本 / 翻面 指示
-                const verInd = $('version-indicator');
-                const verName = { classic: '原版', flip: '翻转版', nomercy: '毫不留情' }[currentRoom.version] || '原版';
-                if (currentRoom.version && currentRoom.version !== 'classic') {
-                    verInd.style.display = 'flex';
-                    let sideTag = '';
-                    if (currentRoom.version === 'flip') {
-                        const isDark = currentRoom.side === 'dark';
-                        sideTag = `<span class="side-tag ${isDark ? 'side-dark' : 'side-light'}">${isDark ? '深色面' : '浅色面'}</span>`;
-                    }
-                    verInd.innerHTML = `<span style="color:var(--yellow);">${verName}</span>${sideTag}`;
-                } else {
-                    verInd.style.display = 'none';
-                }
+                // 版本常显于房间号旁（不显示浅色/深色面小标题）
+                $('game-version-tag').innerText = VERSION_LABELS[currentRoom.version] || '原版';
 
                 $('game-players').innerHTML = [...currentRoom.players].map(p => {
                     const isActive = p.id === (currentPlayer ? currentPlayer.id : null);
@@ -1718,8 +1867,8 @@
                                 <span style="font-weight:bold; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${p.isBot ? '70%' : '100%'};">${escapeHtml(p.name)}</span>
                                 ${p.isBot ? '<span style="background:rgba(255,255,255,0.1); font-size:10px; padding:2px 4px; border-radius:10px; margin-left:4px; flex-shrink:0;">AI</span>' : ''}
                             </div>
-                            <div class="gpc-hand">${handHtml}</div>
-                            ${p.eliminated ? '<div class="gpc-eliminated-badge">淘汰</div>' : ''}
+                            <div class="gpc-hand" style="${window.__hideBox && window.__hideBox[p.id] ? 'opacity:0;' : ''}">${handHtml}</div>
+                            ${p.eliminated && !(window.__elimAnimating && window.__elimAnimating.has(p.id)) ? '<div class="gpc-eliminated-badge">淘汰</div>' : ''}
                         </div>
                     `;
                 }).join('');
@@ -1731,18 +1880,7 @@
                     }
                 }, 100);
 
-                if (animatingPlayCard && currentRoom.topCard && currentRoom.topCard.id === animatingPlayCard.id) {
-                    // Do not update discard pile while animation is playing for this card
-                } else if (currentRoom.topCard) {
-                    const colorClass = currentRoom.topCard.color === 'black' ? currentRoom.currentColor : currentRoom.topCard.color;
-                    const visualCard = {...currentRoom.topCard, color: colorClass, _wild: currentRoom.topCard.color === 'black'};
-                    const html = getCardHTML(visualCard);
-                    $('discard-pile').innerHTML = html.replace('class="card ', 'class="card discard-card ');
-                    $('discard-pile').style.boxShadow = 'none';
-                } else {
-                    $('discard-pile').innerHTML = '';
-                    $('discard-pile').style.boxShadow = 'none';
-                }
+                renderDiscardPile();
 
                 const isSwitching = currentRoom.isBigScreen && currentRoom.state === 'switching_turn';
                 if (isSwitching) {
@@ -1766,52 +1904,108 @@
                     let startLeft = (handWidth - totalWidth) / 2;
 
                     const qLen = drawnCardsQueue[myId] ? drawnCardsQueue[myId].length : 0;
+                    const flipping = !!window.__flipAnim;
+                    const oldFaces = window.__flipOldFaces || {};
+                    const hideIds = window.__discardHideIds; // 清色动画期间要隐藏的真牌（扛住重渲染）
+                    if (isEliminatedSelf) {
+                        // 被淘汰后手牌区显示牌背（观战视角）
+                        const targetPlayer = currentRoom.players.find(p => p.id === spectatorTargetId);
+                        const count = targetPlayer ? targetPlayer.handCount : 0;
+                        const maxDisplay = Math.min(count, 15);
+                        const isMobile = window.innerWidth <= 600;
+                        const cardW = isMobile ? 25 : 40;
+                        const containerW = isMobile ? 68 : 100;
+                        const step = maxDisplay > 1 ? Math.min(10, (containerW - cardW) / (maxDisplay - 1)) : 0;
+                        const startLeft2 = (containerW - (cardW + (maxDisplay - 1) * step)) / 2;
+                        let backsHtml = '';
+                        for (let i = 0; i < maxDisplay; i++) {
+                            backsHtml += `<div class="gpc-card-back" style="position:absolute; left:${startLeft2 + i * step}px; z-index:${i}; width:${cardW}px; height:${isMobile ? 38 : 60}px;"></div>`;
+                        }
+                        $('my-hand').innerHTML = backsHtml;
+                    } else {
                     $('my-hand').innerHTML = myHand.map((c, i) => {
                         const leftPos = startLeft + (i * step);
-                        const isAnimating = (i >= myHand.length - qLen);
-                        const style = `left: ${leftPos}px; z-index: ${i}; opacity: ${isAnimating ? 0 : 1};`;
-                        return `<div class="hand-card" style="${style}" onclick="tryPlayCard('${c.id}')">${getCardHTML(c)}</div>`;
+                        const isAnimating = (i >= myHand.length - qLen) || (hideIds && hideIds.has(c.id));
+                        const flipCls = flipping ? ' card-flipping' : '';
+                        const flipDelay = flipping ? ` --flip-delay:${i * 45}ms;` : '';
+                        const style = `left: ${leftPos}px; z-index: ${i}; opacity: ${isAnimating ? 0 : 1};${flipDelay}`;
+                        // 翻面时先渲染旧面，动画到一半再切换到新面
+                        let faceCard = c;
+                        if (flipping && oldFaces[c.id]) faceCard = { ...c, color: oldFaces[c.id].color, type: oldFaces[c.id].type };
+                        return `<div class="hand-card${flipCls}" style="${style}" onclick="tryPlayCard('${c.id}')">${getCardHTML(faceCard)}</div>`;
                     }).join('');
+                    }
+                    if (flipping) {
+                        // 每张牌翻到一半（约动画中点）时，把牌面就地替换为新面（保留元素以不打断动画）
+                        myHand.forEach((c, i) => {
+                            setTimeout(() => {
+                                const cardEl = document.querySelector(`.hand-card .card[data-id="${c.id}"]`);
+                                if (!cardEl) return;
+                                const tmp = document.createElement('div');
+                                tmp.innerHTML = getCardHTML(c);
+                                const nc = tmp.firstElementChild;
+                                if (nc) { cardEl.className = nc.className; cardEl.innerHTML = nc.innerHTML; }
+                            }, i * 45 + 250);
+                        });
+                    }
+                    window.__flipAnim = false;
+                    window.__flipOldFaces = null;
 
-                    $('btn-skip').classList.remove('show');
+                    $('btn-skip').classList.remove('show', 'skip-pulse');
                     $('btn-urge').classList.remove('show');
-                    $('btn-take-stack').style.display = 'none';
 
-                    // 毫不留情叠加罚牌横幅
+                    // 毫不留情叠加罚牌横幅（出牌区上方）
                     const stack = currentRoom.drawStack || 0;
+                    const pendingDraw = currentRoom.pendingDraw;
                     const banner = $('stack-banner');
                     if (stack > 0) {
                         banner.classList.add('show');
-                        banner.innerHTML = `⚡ 叠加罚牌 <span style="font-size:19px;">${stack}</span> 张 —— 叠出更大的加牌，或认罚接下`;
+                        banner.innerHTML = `⚡ 已叠加 <span style="font-size:20px;">${stack}</span> 张牌`;
                     } else {
                         banner.classList.remove('show');
                     }
 
+                    const guide = $('guide-draw');
+                    guide.classList.remove('show');
                     if (currentRoom.state === 'ingame') {
+                        const curName = currentPlayer ? currentPlayer.name : '';
                         if (isMyTurn && !isSpectator) {
                             if (stack > 0) {
-                                // 叠加进行中：出示认罚接牌按钮（也可继续叠更大的加牌）
-                                const btn = $('btn-take-stack');
-                                btn.style.display = 'block';
-                                btn.innerText = `认罚接 ${stack} 张`;
-                            } else if (hasDrawnThisTurn) {
-                                $('btn-skip').classList.add('show');
+                                guide.innerText = `点击牌堆接下 ${stack} 张，或叠出更大的加牌`;
+                                guide.classList.add('show');
+                            } else if (pendingDraw) {
+                                if (pendingDraw.satisfied) {
+                                    guide.innerText = '已摸到指定颜色，点击下方「跳过」结束回合';
+                                    guide.classList.add('show');
+                                    $('btn-skip').classList.add('show', 'skip-pulse');
+                                } else {
+                                    guide.innerText = '点击牌堆持续摸牌，直到摸到指定颜色';
+                                    guide.classList.add('show');
+                                }
+                            } else {
+                                guide.innerText = '点击上方抽牌';
+                                if (hasDrawnThisTurn) $('btn-skip').classList.add('show');
+                                else if (isFirstRound) guide.classList.add('show');
                             }
-                        } else if (!isSpectator && !currentRoom.isBigScreen) {
-                            $('btn-urge').classList.add('show');
+                        } else {
+                            // 非本人回合：对复杂过程给出持续状态提示（复用抽牌提示元素）
+                            if (stack > 0) {
+                                guide.innerText = `${curName} 正面对叠加的 ${stack} 张罚牌`;
+                                guide.classList.add('show');
+                            } else if (pendingDraw) {
+                                guide.innerText = `${curName} 正在持续摸牌，直到摸到指定颜色`;
+                                guide.classList.add('show');
+                            }
+                            if (!isSpectator && !currentRoom.isBigScreen) $('btn-urge').classList.add('show');
                         }
                     }
                 }
             }
         }
 
+        // 翻面：标记下一次渲染时让每张牌各自独立翻转
         function triggerFlipAnim() {
-            const el = document.querySelector('.game-center');
-            if (!el) return;
-            el.classList.remove('flipping');
-            void el.offsetWidth;
-            el.classList.add('flipping');
-            setTimeout(() => el.classList.remove('flipping'), 700);
+            window.__flipAnim = true;
         }
 
         // Game Actions
@@ -1823,14 +2017,14 @@
         function kickPlayer(id) { sendWS('kick_player', { targetId: id }); }
         
         function drawCard() {
-            if (!isMyTurn || isSpectator || currentRoom.state === 'switching_turn') return;
+            if (!isMyTurn || isSpectator || currentRoom.state === 'switching_turn' || currentRoom.frozen) return;
             sendWS('draw_card');
             $('guide-draw').classList.remove('show');
             isFirstRound = false;
         }
 
         function skipTurn() {
-            if (isSpectator || currentRoom.state === 'switching_turn') return;
+            if (isSpectator || currentRoom.state === 'switching_turn' || currentRoom.frozen) return;
             sendWS('skip_turn');
             $('guide-draw').classList.remove('show');
             isFirstRound = false;
@@ -2006,12 +2200,49 @@
             });
         }
 
+        // 客户端出牌合法性预判（与服务端 isPlayable 对齐）：不合法就不弹选择弹窗
+        function canPlayClient(card) {
+            if (!currentRoom || !card) return false;
+            if (currentRoom.pendingDraw) return false;                 // 逐张摸牌期间不能出牌
+            if ((currentRoom.drawStack || 0) > 0) {                    // 叠加：只能叠等值或更高的加牌
+                const DRAW_VAL = { '+2': 2, '+4': 4, 'wild-rev4': 4, 'wild+6': 6, 'wild+10': 10 };
+                const v = DRAW_VAL[card.type] || 0;
+                return v > 0 && v >= (currentRoom.stackValue || 0);
+            }
+            const top = currentRoom.topCard;
+            let base = false;
+            if (card.color === 'black') base = true;
+            else if (card.color === currentRoom.currentColor) base = true;
+            else if (top && card.type === top.type && card.color !== 'black' && top.color !== 'black') base = true;
+            if (!base) return false;
+            if (card.type === 'wild+2' || card.type === 'wild-drawcolor') { // 翻转版限制：手上有同色牌不能打
+                if (myHand.some(c => c.color !== 'black' && c.color === currentRoom.currentColor)) return false;
+            }
+            return true;
+        }
+
         function tryPlayCard(cardId) {
-            if (!isMyTurn || isSpectator || currentRoom.state === 'switching_turn') return;
+            if (!isMyTurn || isSpectator || currentRoom.state === 'switching_turn' || currentRoom.frozen) return;
+            const card = myHand.find(c => c.id === cardId);
+            if (!card) return;
+            if (isCheatMode) {
+                // 作弊出牌只在"能出牌时"可用：持续摸牌/摸到指定色后不可作弊
+                if (currentRoom.pendingDraw) { showToast('现在无法作弊出牌', 'error'); return; }
+                // 不能正常出的牌（含叠加中的任意牌）→ 变成作弊牌（毫不留情=万能+10，可继续甩给下家）
+                if (!canPlayClient(card)) {
+                    pendingWildCardId = cardId;
+                    isPendingCheatColor = true;
+                    $('guide-draw').classList.remove('show');
+                    isFirstRound = false;
+                    openColorPicker();
+                    return;
+                }
+            } else if (!canPlayClient(card)) {
+                showToast('这张牌现在打不出', 'error');
+                return;
+            }
             $('guide-draw').classList.remove('show');
             isFirstRound = false;
-            const card = myHand.find(c => c.id === cardId);
-            
             if (card.color === 'black') {
                 pendingWildCardId = cardId;
                 openColorPicker();
@@ -2034,15 +2265,14 @@
             showModal('color-picker-modal');
         }
 
-        // 毫不留情：认罚接下叠加的所有罚牌
-        function takeStack() {
-            if (isSpectator || !currentRoom || currentRoom.state !== 'ingame') return;
-            sendWS('take_stack');
-        }
-
         // 毫不留情：7 号换手，选择交换目标
         function chooseSwapTarget(id) {
             sendWS('swap_hands', { targetId: id });
+            hideModal('swap-modal');
+        }
+        // 点空白关闭换手弹窗：取消这次出 7（牌留在手里，仍是你的回合）
+        function cancelSwapModal() {
+            sendWS('cancel_seven');
             hideModal('swap-modal');
         }
 
@@ -2066,19 +2296,22 @@
         }
 
         function revealQteModal(data) {
+            // 关掉可能残留的其它弹窗，避免遮住 QTE 抢答窗
+            ['swap-modal', 'color-picker-modal', 'room-mgmt-modal'].forEach(id => hideModal(id));
             const qteIsButton = data.qteMode === 'button';
-            $('qte-desc-type').style.display = qteIsButton ? 'none' : 'block';
-            $('qte-word-display').style.display = qteIsButton ? 'none' : 'block';
-            $('qte-word-display').innerText = `UNO-${data.qteWord}`;
+            $('qte-word-display').innerText = data.qteWord ? `UNO-${data.qteWord}` : '';
             if (isSpectator) {
                 $('qte-input-wrapper').style.display = 'none';
                 $('qte-buzz-btn').style.display = 'none';
+                $('qte-subtitle').innerText = '有人手牌清空，正在抢答…';
             } else if (qteIsButton) {
                 $('qte-input-wrapper').style.display = 'none';
                 $('qte-buzz-btn').style.display = 'block';
+                $('qte-subtitle').innerText = '有人手牌清空，抢先按下按钮抢下这一局！';
             } else {
                 $('qte-input-wrapper').style.display = 'flex';
                 $('qte-buzz-btn').style.display = 'none';
+                $('qte-subtitle').innerText = '有人手牌清空，抢先输入下方抢答码！';
                 $('qte-input').value = '';
                 renderQteDigits();
             }
@@ -2128,7 +2361,9 @@
         }
 
         function buzzQte() {
-            if (currentQteWord === null) return;
+            // 按钮模式：抢先按下即可，不涉及随机数
+            if (currentRoom && currentRoom.qteMode === 'button') { sendWS('qte_submit', { buzz: true }); return; }
+            if (currentQteWord === null || currentQteWord === undefined) return;
             sendWS('qte_submit', { word: `UNO-${currentQteWord}` });
         }
 
@@ -2149,10 +2384,11 @@
             };
         }
 
-        function animateCard(startRect, endRect, cardHtml, onComplete, fadeOutAtEnd = false, playerIdForReveal = null) {
+        function animateCard(startRect, endRect, cardHtml, onComplete, fadeOutAtEnd = false, playerIdForReveal = null, opts = {}) {
             const el = document.createElement('div');
             el.className = 'anim-card';
-            
+            if (opts.zIndex != null) el.style.zIndex = opts.zIndex;
+
             const cardSize = getActualCardSize();
             el.innerHTML = `<div class="anim-card-inner" style="width:${cardSize.width}px; height:${cardSize.height}px;">${cardHtml}</div>`;
             
@@ -2163,7 +2399,8 @@
             el.style.opacity = '1';
 
             const innerEl = el.querySelector('.anim-card-inner');
-            
+            innerEl.style.transformOrigin = 'top left'; // 缩放以左上角为基准，避免尺寸≠cardSize时视觉中心偏移
+
             const startScaleX = startRect.width / cardSize.width;
             const startScaleY = startRect.height / cardSize.height;
             innerEl.style.transform = `scale(${startScaleX}, ${startScaleY})`;
@@ -2172,8 +2409,9 @@
 
             el.getBoundingClientRect();
 
-            const flightMs = lowPerfMode ? 50 : 400;
-            const flightS = lowPerfMode ? 0.05 : 0.4;
+            const durScale = opts.durationScale || 1;
+            const flightMs = (lowPerfMode ? 50 : 400) * durScale;
+            const flightS = (lowPerfMode ? 0.05 : 0.4) * durScale;
             const fadeS = lowPerfMode ? 0.05 : 0.2;
             el.style.transition = `left ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), top ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), width ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), height ${flightS}s cubic-bezier(0.25, 0.8, 0.25, 1), opacity ${fadeS}s ease-out`;
             el.style.left = endRect.left + 'px';
@@ -2217,7 +2455,7 @@
             }, flightMs);
         }
 
-        function animateDrawCard(playerId, count) {
+        function animateDrawCard(playerId, count, simultaneous, isDeal) {
             const deckEl = $('deck-pile');
             if(!deckEl) return;
             const startRect = deckEl.getBoundingClientRect();
@@ -2233,7 +2471,26 @@
             if(!endEl) return;
             let endRect = endEl.getBoundingClientRect();
 
-            for(let i=0; i<count; i++) {
+            // 通用规则仅适用于"同时开始"的多张动画：此时只把受影响(新增)的牌提前隐藏，落地后(约首张结束)统一出现；
+            // 逐张开始的情形（如机器人逐张摸到指定色）不适用，沿用逐张落地即现
+            const boxRevealTogether = (!isMe && simultaneous && count > 1);
+            // 初始发牌：给我的牌同速、真实牌在动画结束后统一出现
+            const myRevealAtEnd = (isMe && isDeal);
+
+            // 同时摸多张时最多只飞 10 张（避免张数过多导致速度极慢）；靠前的多余张直接就位
+            const ANIM_MAX = 10;
+            const skip = Math.max(0, count - ANIM_MAX);
+            for (let i = 0; i < skip; i++) {
+                if (drawnCardsQueue[playerId] && drawnCardsQueue[playerId].length) drawnCardsQueue[playerId].shift();
+                if (isMe) {
+                    const cardIndex = myHand.length - count + i;
+                    const el = document.querySelector(`.hand-card[style*="z-index: ${cardIndex}"]`);
+                    if (el) el.style.opacity = '1';
+                }
+            }
+
+            for(let i=skip; i<count; i++) {
+                const ai = i - skip; // 动画序号（0 起），用于错峰与速度
                 setTimeout(() => {
                     playDrawSound();
                     let cardHtml = `<div class="card card-back" style="width:100%;height:100%;"></div>`;
@@ -2287,17 +2544,222 @@
                         };
                     }
                     
+                    // 同时抽多张：一起出发（发牌同速，其余按 ai 变速），落到各自预定位置
                     animateCard(startRect, currentEndRect, cardHtml, () => {
-                        if (isMe) {
-                            const cardIndex = myHand.length - count + i;
-                            const targetCardEl = document.querySelector(`.hand-card[style*="z-index: ${cardIndex}"]`);
-                            if (targetCardEl) {
-                                targetCardEl.style.opacity = '1';
+                        if (isMe && !myRevealAtEnd) {
+                            // 用 data-id 定位，避免中间 room_state 重绘后索引错位
+                            if (drawnCard) {
+                                const cardEl = document.querySelector(`.hand-card .card[data-id="${drawnCard.id}"]`);
+                                if (cardEl && cardEl.parentElement) {
+                                    cardEl.parentElement.style.opacity = '1';
+                                }
+                            } else {
+                                const cardIndex = myHand.length - count + i;
+                                const targetCardEl = document.querySelector(`.hand-card[style*="z-index: ${cardIndex}"]`);
+                                if (targetCardEl) {
+                                    targetCardEl.style.opacity = '1';
+                                }
                             }
-                        } 
-                    }, !isMe, playerId); 
-                }, i * 200); 
+                        }
+                    }, !isMe, boxRevealTogether ? null : playerId, { durationScale: isDeal ? 1 : (simultaneous ? 1 : 1) });
+                }, ai * (simultaneous ? 0 : 200));
             }
+            // 同时开始的多张：受影响的牌统一在首张落地时间出现（只揭示受影响部分，其余牌不动）
+            if (boxRevealTogether) {
+                setTimeout(() => {
+                    if (window.animatingOpponentCards) window.animatingOpponentCards[playerId] = 0;
+                    if (currentRoom) renderRoom(currentRoom.state);
+                }, 400);
+            }
+            // 初始发给我的牌：动画结束后真实手牌统一出现
+            if (myRevealAtEnd) {
+                setTimeout(() => {
+                    document.querySelectorAll('#my-hand .hand-card').forEach(el => { el.style.opacity = '1'; });
+                }, 450);
+            }
+        }
+
+        // 清色堆叠状态：{ mainId, cards:[{card, landed}] }，用于让被清掉的同色牌扇形垫在清色牌下方
+        let discardAllFan = null;
+
+        // 清色：被一并清掉的同色牌一起飞向弃牌堆，落地后各自显现，扇形压在清色牌下方
+        function animateDiscardAll(data) {
+            // 最多展示 10 张，避免张数过多导致动画拥挤/极慢
+            const cards = (data.cards || []).slice(0, 10);
+            discardAllFan = cards.length ? { mainId: data.mainId, cards: cards.map(c => ({ card: c, landed: false })) } : null;
+            renderDiscardPile();
+            if (!cards.length) return;
+            const discardEl = $('discard-pile');
+            if (!discardEl) return;
+            const endRect = discardEl.getBoundingClientRect();
+            const isMe = (data.playerId === myId);
+            const cardSize = getActualCardSize();
+            const boxRect = isMe ? null : (($(`player-hud-${data.playerId}`) || discardEl).getBoundingClientRect());
+            // 我出清色：标记这些真牌为隐藏，扛住随后的 room_state 重渲染（服务端 500ms 后才真正移除它们）
+            if (isMe) {
+                window.__discardHideIds = new Set(cards.map(c => c.id));
+                if (window.__discardHideTimer) clearTimeout(window.__discardHideTimer);
+                window.__discardHideTimer = setTimeout(() => { window.__discardHideIds = null; }, 650);
+            }
+            cards.forEach((c, i) => {
+                const off = (i - (cards.length - 1) / 2);
+                let startRect;
+                if (isMe) {
+                    // 从我手里这张牌的真实位置出发，并隐藏真实牌（避免与飞行牌重复）
+                    const el = document.querySelector(`.hand-card .card[data-id="${c.id}"]`);
+                    if (el && el.parentElement) {
+                        const pr = el.parentElement.getBoundingClientRect();
+                        startRect = { left: pr.left, top: pr.top, width: pr.width, height: pr.height };
+                        el.parentElement.style.opacity = '0';
+                    } else {
+                        const hr = $('my-hand').getBoundingClientRect();
+                        startRect = { left: hr.left + hr.width / 2 - cardSize.width / 2, top: hr.top, width: cardSize.width, height: cardSize.height };
+                    }
+                } else {
+                    startRect = { left: boxRect.left + boxRect.width / 2 - cardSize.width / 4, top: boxRect.top + boxRect.height / 2 - cardSize.height / 4, width: cardSize.width * 0.5, height: cardSize.height * 0.5 };
+                }
+                // 落点与 renderDiscardPile 的扇形位置严格一致（纯 translate，无旋转），精确落在出牌区
+                const target = { left: endRect.left, top: endRect.top, width: endRect.width, height: endRect.height };
+                // 同速同起、精准落点；落地后再让对应的垫底牌显现
+                animateCard(startRect, target, getCardHTML(c), () => {
+                    if (discardAllFan && discardAllFan.cards[i]) { discardAllFan.cards[i].landed = true; renderDiscardPile(); }
+                }, false, null, { durationScale: 1, zIndex: 990 });
+            });
+        }
+
+        // 玩家在屏幕上的锚点（自己用手牌区，其他人用头像栏）
+        function playerAnchorRect(pid) {
+            let el = (pid === myId) ? $('my-hand') : $(`player-hud-${pid}`);
+            if (!el) el = $('discard-pile');
+            const r = el.getBoundingClientRect();
+            const cs = getActualCardSize();
+            return { left: r.left + r.width / 2 - cs.width / 4, top: r.top + r.height / 2 - cs.height / 4, width: cs.width / 2, height: cs.height / 2 };
+        }
+        function flyCardBack(from, to, delay, dur) {
+            setTimeout(() => animateCard(from, to, `<div class="card card-back" style="width:100%;height:100%;"></div>`, null, false, null, { durationScale: dur, zIndex: 970 }), delay);
+        }
+        // 换牌动画期间隐藏我的真实手牌，动画结束再显现新手牌
+        function hideHandsDuringSwap(ms) {
+            document.body.classList.add('swap-animating');
+            if (window.__swapHideTimer) clearTimeout(window.__swapHideTimer);
+            window.__swapHideTimer = setTimeout(() => document.body.classList.remove('swap-animating'), ms);
+        }
+        // 落点为某玩家框的动画：动画期间隐藏该框手牌，ms 后（以第一张落地时间为准）统一出现
+        function hideBoxHandUntil(playerId, ms) {
+            if (!window.__hideBox) window.__hideBox = {};
+            if (!window.__hideBoxTimers) window.__hideBoxTimers = {};
+            window.__hideBox[playerId] = true;
+            const hud = $(`player-hud-${playerId}`);
+            const gpc = hud && hud.querySelector('.gpc-hand');
+            if (gpc) gpc.style.opacity = '0';
+            if (window.__hideBoxTimers[playerId]) clearTimeout(window.__hideBoxTimers[playerId]);
+            window.__hideBoxTimers[playerId] = setTimeout(() => {
+                delete window.__hideBox[playerId];
+                if (window.animatingOpponentCards) window.animatingOpponentCards[playerId] = 0; // 避免有牌残留为隐藏态
+                if (currentRoom) renderRoom(currentRoom.state);
+            }, ms);
+        }
+        // 计算我的手牌区里 n 张牌各自的槽位坐标（用于换手落点对齐）
+        function handSlotRects(n) {
+            const handRect = $('my-hand').getBoundingClientRect();
+            const cs = getActualCardSize();
+            const availableSpace = handRect.width - cs.width;
+            let step = cs.width + 10;
+            if (n > 1) { const needed = (n - 1) * step; if (needed > availableSpace) step = availableSpace / (n - 1); }
+            const totalWidth = (n - 1) * step + cs.width;
+            const startLeft = (handRect.width - totalWidth) / 2;
+            const rects = [];
+            for (let i = 0; i < n; i++) rects.push({ left: handRect.left + startLeft + i * step, top: handRect.top, width: cs.width, height: cs.height });
+            return rects;
+        }
+        function handCountOf(pid) { const p = currentRoom && currentRoom.players.find(x => x.id === pid); return p ? p.handCount : 3; }
+
+        // 7 号换手：两个方向的动画同时开始、同时结束（durationScale 统一为 1），落点为玩家框的牌动画结束后才出现
+        function animateHandSwap(aId, bId) {
+            const iAmIn = (aId === myId || bId === myId);
+            if (!iAmIn) { // 两名他人互换：两头像框对飞牌背，两框都在动画结束后统一出现
+                const a = playerAnchorRect(aId), b = playerAnchorRect(bId);
+                hideBoxHandUntil(aId, 450); hideBoxHandUntil(bId, 450);
+                for (let i = 0; i < 3; i++) { flyCardBack(a, b, 0, 1); flyCardBack(b, a, 0, 1); }
+                return;
+            }
+            hideHandsDuringSwap(450);              // 我的真实手牌：动画结束立刻显示新手牌
+            const otherId = (aId === myId) ? bId : aId;
+            hideBoxHandUntil(otherId, 450);        // 对方框：动画结束后才出现
+            const otherBox = playerAnchorRect(otherId);
+            // 我的每张牌从真实位置聚拢到对方头像框
+            const myCards = [...document.querySelectorAll('#my-hand .hand-card')].slice(0, 14);
+            myCards.forEach((el, i) => {
+                const r = el.getBoundingClientRect();
+                const from = { left: r.left, top: r.top, width: r.width, height: r.height };
+                animateCard(from, otherBox, getCardHTML(myHand[i] || { color: 'red', type: '0' }), null, false, null, { durationScale: 1, zIndex: 975 });
+            });
+            // 对方的牌从其头像框散开，落到我的手牌区对应槽位
+            const otherCount = Math.min(handCountOf(otherId), 14);
+            const slots = handSlotRects(otherCount || 1);
+            for (let i = 0; i < otherCount; i++) {
+                const to = slots[i] || slots[slots.length - 1];
+                flyCardBack(otherBox, to, 0, 1);
+            }
+        }
+
+        // 0 号全体传手：我的牌向右出、上一家的牌从左入，两动画同时开始同时结束；不做玩家框之间的动画
+        function animateHandPass(order, direction) {
+            if (!order || order.length < 2) return;
+            const n = order.length;
+            const myIdx = order.indexOf(myId);
+            if (myIdx === -1) return; // 我不在场则不做我方动画（其余框靠 room_state 更新）
+            hideHandsDuringSwap(450);
+            // 我的牌向右平移出屏幕
+            const myCards = [...document.querySelectorAll('#my-hand .hand-card')].slice(0, 14);
+            myCards.forEach((el, i) => {
+                const r = el.getBoundingClientRect();
+                const from = { left: r.left, top: r.top, width: r.width, height: r.height };
+                const to = { left: window.innerWidth + 60, top: r.top, width: r.width, height: r.height };
+                animateCard(from, to, getCardHTML(myHand[i] || { color: 'red', type: '0' }), null, false, null, { durationScale: 1, zIndex: 975 });
+            });
+            // 上一家的牌从屏幕外(左侧)向右进我手牌区槽位（与上面同时开始同时结束）
+            const prevId = order[((myIdx - direction) % n + n) % n];
+            const prevCount = Math.min(handCountOf(prevId), 14);
+            const slots = handSlotRects(prevCount || 1);
+            for (let i = 0; i < prevCount; i++) {
+                const to = slots[i] || slots[slots.length - 1];
+                const from = { left: -to.width - 60, top: to.top, width: to.width, height: to.height };
+                animateCard(from, to, `<div class="card card-back" style="width:100%;height:100%;"></div>`, null, false, null, { durationScale: 1, zIndex: 970 });
+            }
+        }
+
+        // 渲染弃牌堆：普通情况只显示顶牌；清色时被清同色牌扇形垫底、清色牌压在最上方
+        function renderDiscardPile() {
+            const el = $('discard-pile');
+            if (!el || !currentRoom) return;
+            const top = currentRoom.topCard;
+            if (!top) { el.innerHTML = ''; el.style.boxShadow = 'none'; return; }
+            if (discardAllFan && discardAllFan.mainId !== top.id) discardAllFan = null;
+            const cardVisual = (c) => {
+                const colorClass = c.color === 'black' ? currentRoom.currentColor : c.color;
+                return getCardHTML({ ...c, color: colorClass, _wild: c.color === 'black' });
+            };
+            // 垫底扇形（无旋转、纯 translate，精确对齐飞行动画的落点；未落地的透明）
+            const fanHtml = () => (discardAllFan ? discardAllFan.cards.map((it, i) => {
+                const off = (i - (discardAllFan.cards.length - 1) / 2);
+                const inner = cardVisual(it.card).replace('class="card ', 'class="card discard-card ');
+                return `<div class="discard-stack" style="opacity:${it.landed ? 1 : 0}; z-index:${i};">${inner}</div>`;
+            }).join('') : '');
+            // 顶牌(清色牌/普通牌)出牌动画进行中：仍渲染已落地的垫底扇形，但不渲染顶牌（顶牌由飞行副本表示，避免闪跳）
+            if (animatingPlayCard && top.id === animatingPlayCard.id) {
+                el.innerHTML = fanHtml();
+                el.style.boxShadow = 'none';
+                return;
+            }
+            if (discardAllFan) {
+                const topInner = cardVisual(top).replace('class="card ', 'class="card discard-card ');
+                el.innerHTML = fanHtml() + `<div class="discard-stack" style="z-index:99;">${topInner}</div>`;
+            } else {
+                const discCls = window.__flipAnim ? 'card discard-card card-flipping ' : 'card discard-card ';
+                el.innerHTML = cardVisual(top).replace('class="card ', 'class="' + discCls);
+            }
+            el.style.boxShadow = 'none';
         }
 
         function animatePlayCard(playerId, card, declaredColor) {

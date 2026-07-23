@@ -10,10 +10,19 @@
 
 **基于 Node.js + Express + WebSocket 的实时多人在线 UNO 网页游戏**
 
-![Node](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white)
-![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
-![WebSocket](https://img.shields.io/badge/WebSocket-ws%208-010101?logo=socketdotio&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue)
+[![Node](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![WebSocket](https://img.shields.io/badge/WebSocket-ws%208-010101?logo=socketdotio&logoColor=white)](https://github.com/websockets/ws)
+[![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript)
+[![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white)](https://developer.mozilla.org/zh-CN/docs/Web/HTML)
+[![CSS3](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white)](https://developer.mozilla.org/zh-CN/docs/Web/CSS)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
+[![Stars](https://img.shields.io/github/stars/HY916-cn/uno?logo=github&label=Stars)](https://github.com/HY916-cn/uno/stargazers)
+[![Forks](https://img.shields.io/github/forks/HY916-cn/uno?logo=github&label=Forks)](https://github.com/HY916-cn/uno/network/members)
+[![Last Commit](https://img.shields.io/github/last-commit/HY916-cn/uno?logo=git&logoColor=white)](https://github.com/HY916-cn/uno/commits/main)
+[![Repo Size](https://img.shields.io/github/repo-size/HY916-cn/uno)](https://github.com/HY916-cn/uno)
+[![Issues](https://img.shields.io/github/issues/HY916-cn/uno?logo=github&label=Issues)](https://github.com/HY916-cn/uno/issues)
 
 前端采用纯原生 HTML/CSS/JavaScript，无任何第三方框架依赖，<br/>
 配合毛玻璃（Glassmorphism）风格 UI，提供跨端游玩体验。

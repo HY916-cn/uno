@@ -244,6 +244,8 @@ function broadcastRoom(roomId) {
         side: room.side,
         drawStack: room.drawStack || 0,
         stackValue: room.stackValue || 0,
+        pendingDraw: room.pendingDraw || null,
+        frozen: !!room.frozen,
         state: room.state,
         switchTargetIndex: room.switchTargetIndex,
         maxPlayers: room.maxPlayers,
@@ -270,17 +272,38 @@ function broadcastRoom(roomId) {
         topCard: room.discardPile[room.discardPile.length - 1] || null,
         deckCount: room.deck.length,
         qteWinner: room.qteWinner,
-        results: room.results
+        results: room.results,
+        resultsByElimination: !!room.resultsByElimination
     };
 
     const wsSet = new Set();
     room.players.forEach(p => {
         if (!p.isBot && p.ws && p.ws.readyState === 1 && !wsSet.has(p.ws)) {
             wsSet.add(p.ws);
-            
+
+            // 被淘汰的真人：转为观战身份，可观看其他未淘汰玩家
+            if (!room.isBigScreen && p.eliminated) {
+                let watchId = p.specTarget;
+                if (!watchId || !room.players.some(x => x.id === watchId && !x.eliminated)) {
+                    const cur = room.players[room.turnIndex];
+                    watchId = (cur && !cur.eliminated) ? cur.id : (room.players.find(x => !x.eliminated) || {}).id;
+                }
+                const watch = room.players.find(x => x.id === watchId);
+                p.ws.send(JSON.stringify({
+                    type: 'room_state', room: stateToSend,
+                    myHand: [],
+                    myId: p.id,
+                    hasDrawnThisTurn: room.hasDrawnThisTurn,
+                    isSpectator: true,
+                    spectatorTargetId: watchId,
+                    eliminatedSelf: true
+                }));
+                return;
+            }
+
             let targetId = p.id;
             let targetHand = p.hand;
-            
+
             if (room.isBigScreen) {
                 if (room.state === 'ingame') {
                     // 游戏中实时将大屏视角切换至出牌玩家
@@ -461,6 +484,8 @@ function hasColorMatch(room, player) {
 
 // 统一的"这张牌现在能不能打"判定（服务端出牌校验 + AI 都用它）
 function isPlayable(room, player, card) {
+    // 挂起"持续摸牌直到指定色"期间不能出牌，必须先点牌堆摸完
+    if (room.pendingDraw) return false;
     // 毫不留情：叠加进行中，只能叠出等值或更高的加牌，其余一律不能打
     if (room.drawStack > 0) {
         return STACKABLE.has(card.type) && getDrawValue(card) >= room.stackValue;
@@ -480,34 +505,49 @@ function penalizeNext(room, amount) {
     const np = room.players[nextIdx];
     const pen = drawCards(room, amount);
     np.hand.push(...pen);
+    const willElim = room.version === 'nomercy' && np.hand.length >= 25; // 这次罚抽将导致其淘汰
     log(room.id, 'INFO', `玩家(${np.name})被罚抽${pen.length}张`);
     if (!np.isBot && np.ws && np.ws.readyState === 1) {
         np.ws.send(JSON.stringify({ type: 'draw_card_result', cards: pen, playerId: np.id }));
     }
-    broadcastEvent(room.id, 'draw_card', { playerId: np.id, count: pen.length, isPenalty: true });
+    // willEliminate：客户端据此让"被淘汰者本人"跳过抽牌动画（其他人照常播放）
+    broadcastEvent(room.id, 'draw_card', { playerId: np.id, count: pen.length, isPenalty: true, simultaneous: pen.length > 1, willEliminate: willElim });
     checkEliminations(room);
 }
 
-// 选色轮盘 / 万能指定色抽：下家持续摸牌直到摸到指定颜色（万能牌不算），全部收入手中
-function rouletteDraw(room, color) {
-    const nextIdx = getNextTurn(room, 1);
-    const np = room.players[nextIdx];
-    const drawn = [];
-    let safety = 0;
-    while (safety < 50) {
-        const c = drawCards(room, 1);
-        if (c.length === 0) break;
-        drawn.push(c[0]);
-        safety++;
-        if (c[0].color === color) break;
+// 选色轮盘 / 万能指定色抽：当前玩家逐张点牌堆摸牌，直到摸到指定颜色（万能牌 black 不算）为止；
+// 摸到后 pendingDraw.satisfied=true，等玩家点"跳过"结束其回合。AI 会自动一张张摸完并跳过。
+function resolveUntilDrawOne(room, player) {
+    if (!room.pendingDraw) return;
+    const c = drawCards(room, 1);
+    if (c.length === 0) { // 牌堆彻底空了，直接结束
+        room.pendingDraw = null;
+        advanceTurn(room, 1);
+        return;
     }
-    np.hand.push(...drawn);
-    log(room.id, 'INFO', `玩家(${np.name})选色轮盘摸了${drawn.length}张`);
-    if (!np.isBot && np.ws && np.ws.readyState === 1) {
-        np.ws.send(JSON.stringify({ type: 'draw_card_result', cards: drawn, playerId: np.id }));
+    player.hand.push(c[0]);
+    if (!player.isBot && player.ws && player.ws.readyState === 1) {
+        player.ws.send(JSON.stringify({ type: 'draw_card_result', cards: c, playerId: player.id }));
     }
-    broadcastEvent(room.id, 'draw_card', { playerId: np.id, count: drawn.length, isPenalty: true });
-    checkEliminations(room);
+    broadcastEvent(room.id, 'draw_card', { playerId: player.id, count: 1 });
+    if (c[0].color === room.pendingDraw.untilColor) {
+        room.pendingDraw.satisfied = true; // 万能牌 color==='black' 永不等于指定色，自然"不算"
+        log(room.id, 'INFO', `玩家(${player.name})摸到指定色 ${room.pendingDraw.untilColor}`);
+    }
+    const ended = checkEliminations(room);
+    if (ended || room.state !== 'ingame') return;
+    // 摸牌途中被淘汰：立即中断摸牌（真人/AI 一致），清挂起并跳过其回合
+    if (player.eliminated) { room.pendingDraw = null; advanceTurn(room, 1); return; }
+    broadcastRoom(room.id);
+    if (player.isBot) {
+        // AI：没摸到继续摸，摸到则跳过
+        setTimeout(() => {
+            if (room.state !== 'ingame' || room.frozen || !room.pendingDraw) return;
+            if (room.players[room.turnIndex].id !== player.id) return;
+            if (room.pendingDraw.satisfied) { room.pendingDraw = null; advanceTurn(room, 1); }
+            else resolveUntilDrawOne(room, player);
+        }, 450);
+    }
 }
 
 // 打 0：所有未淘汰玩家按当前出牌方向把整手牌传给下一位
@@ -525,27 +565,53 @@ function passAllHands(room) {
     log(room.id, 'INFO', `打出 0，全体传手`);
     // 手牌整体替换：通知客户端跳过本帧的"抽牌"动画核算，靠随后的 room_state 广播刷新
     broadcastEvent(room.id, 'hands_reset', {});
+    broadcastEvent(room.id, 'hand_pass', { order: active.map(p => p.id), direction: room.direction });
+}
+
+// 淘汰动画期间全场冻结：AI 与真人都无法操作，动画结束后恢复
+function freezeRoom(room, ms) {
+    room.frozen = true;
+    if (room.aiTimer) { clearTimeout(room.aiTimer); room.aiTimer = null; }
+    broadcastRoom(room.id);
+    if (room.freezeTimer) clearTimeout(room.freezeTimer);
+    room.freezeTimer = setTimeout(() => {
+        room.frozen = false;
+        room.freezeTimer = null;
+        if (room.state === 'ingame') { broadcastRoom(room.id); checkAITurn(room); }
+    }, ms);
 }
 
 // 检查是否有玩家手牌达到 25 张需要淘汰；若只剩一人则结束本局
 function checkEliminations(room) {
-    if (room.version !== 'nomercy') return;
+    if (room.version !== 'nomercy') return false;
     for (const p of room.players) {
         if (!p.eliminated && p.hand.length >= 25) {
             p.eliminated = true;
-            if (!room.removedPile) room.removedPile = [];
-            room.removedPile.push(...p.hand);
+            // 淘汰玩家的手牌直接洗回抽牌堆
+            room.deck.push(...p.hand);
+            room.deck = shuffle(room.deck);
             p.hand = [];
-            log(room.id, 'INFO', `玩家(${p.name})手牌达25张，被淘汰`);
+            const alive = room.players.filter(x => !x.eliminated);
+            if (alive.length === 1) {
+                // 最后一个被淘汰：不播飞行动画，但玩家框直接显示淘汰徽标，短暂停留后进入胜利
+                log(room.id, 'INFO', `玩家(${p.name})被淘汰，只剩(${alive[0].name})，直接获胜`);
+                room.frozen = true;
+                room.endedByElimination = true; // 淘汰取胜（无最终QTE）
+                if (room.freezeTimer) { clearTimeout(room.freezeTimer); room.freezeTimer = null; }
+                broadcastEvent(room.id, 'player_eliminated', { playerId: p.id, name: p.name, skipAnim: true });
+                broadcastRoom(room.id);
+                setTimeout(() => {
+                    room.frozen = false;
+                    broadcastEvent(room.id, 'qte_win', { winner: alive[0].name });
+                    endGame(room);
+                }, 1000);
+                return true;
+            }
+            // 非最后淘汰：播放淘汰动画并全场冻结
+            log(room.id, 'INFO', `玩家(${p.name})手牌达25张，被淘汰，手牌洗回牌堆`);
             broadcastEvent(room.id, 'player_eliminated', { playerId: p.id, name: p.name });
+            freezeRoom(room, 2400);
         }
-    }
-    const alive = room.players.filter(p => !p.eliminated);
-    if (alive.length === 1 && room.state === 'ingame') {
-        log(room.id, 'INFO', `只剩玩家(${alive[0].name})，直接获胜`);
-        broadcastEvent(room.id, 'qte_win', { winner: alive[0].name });
-        endGame(room);
-        return true;
     }
     return false;
 }
@@ -584,36 +650,48 @@ function doSwap(room, byId, targetId) {
     room.pendingSwap = null;
     // 手牌整体替换：通知客户端跳过本帧的"抽牌"动画核算，靠随后 advanceTurn 的 room_state 广播刷新
     broadcastEvent(room.id, 'hands_reset', {});
+    broadcastEvent(room.id, 'hand_swap', { aId: byId, bId: targetId });
     advanceTurn(room, 1);
 }
 
 function triggerQTE(room, player) {
     room.state = 'qte';
     room.qteTargetPlayerId = player.id;
-    // 打字模式下验证码已经在游戏开局/上一轮抓捕后提前预告过了，这里沿用同一个词；
-    // 按钮模式没有预告，此时才现场生成
-    if (room.qteMode !== 'type' || !room.qteWord) {
-        room.qteWord = generateQteWord();
+    // 打字模式：沿用开局/抓捕后预告过的验证码；按钮模式：不使用也不推送随机数（抢先按下即可）
+    if (room.qteMode === 'type') {
+        if (!room.qteWord) room.qteWord = generateQteWord();
+    } else {
+        room.qteWord = null;
     }
     room.qteStartTime = Date.now();
     room.qteRevealAt = Date.now() + QTE_REVEAL_BUFFER_MS;
-    log(room.id, 'INFO', `玩家(${player.name})手牌为0，触发QTE抢答! 目标词: UNO-${room.qteWord}`);
+    log(room.id, 'INFO', `玩家(${player.name})手牌为0，触发QTE抢答!${room.qteMode === 'type' ? ' 目标词: UNO-' + room.qteWord : ' 按钮模式'}`);
 
-    broadcastEvent(room.id, 'qte_start', { qteWord: room.qteWord, qteMode: room.qteMode, revealAt: room.qteRevealAt });
+    broadcastEvent(room.id, 'qte_start', { qteWord: room.qteMode === 'type' ? room.qteWord : undefined, qteMode: room.qteMode, revealAt: room.qteRevealAt });
 
-    // Bots randomly try to catch
+    // Bots randomly try to catch —— 以人类平均反应(~250ms)为下限直接定义"反应时间"，
+    // 再换算成从触发起算的延迟(delay = 缓冲 + 反应)；按钮只需按下比输入打字快；抓捕者略慢给目标先手
+    const isButton = room.qteMode === 'button';
     room.players.forEach(p => {
         if (p.isBot) {
-            let delay;
-            if (p.id === room.qteTargetPlayerId) {
-                delay = 2000 + Math.random() * 2000; 
+            const isTarget = p.id === room.qteTargetPlayerId;
+            const r = Math.random();
+            let reaction; // 目标反应时间(ms)，参照人类
+            if (isButton) {
+                if (r < 0.45) reaction = 200 + Math.random() * 220;      // 快 200–420ms（偶尔快手手速）
+                else if (r < 0.82) reaction = 420 + Math.random() * 430; // 中 420–850ms
+                else reaction = 850 + Math.random() * 850;               // 慢 850–1700ms
             } else {
-                delay = 2500 + Math.random() * 2500;
+                if (r < 0.4) reaction = 450 + Math.random() * 400;       // 快 450–850ms（含打字）
+                else if (r < 0.82) reaction = 850 + Math.random() * 750; // 中 850–1600ms
+                else reaction = 1600 + Math.random() * 1200;             // 慢 1600–2800ms
             }
-            
+            if (!isTarget) reaction += isButton ? 150 : 300;             // 抓捕者略慢
+            const delay = QTE_REVEAL_BUFFER_MS + reaction;               // 换算成延迟
+
             setTimeout(() => {
                 if (room.state === 'qte') {
-                    handleQTESubmit(room, p, `UNO-${room.qteWord}`, Date.now());
+                    handleQTESubmit(room, p, room.qteMode === 'type' ? `UNO-${room.qteWord}` : '', Date.now());
                 }
             }, delay);
         }
@@ -623,8 +701,12 @@ function triggerQTE(room, player) {
 function handleQTESubmit(room, player, word, clientTime) {
     if (room.state !== 'qte') return;
     if (room.qteRevealAt && Date.now() < room.qteRevealAt) return; // 同步展示窗口结束前的提交一律无效，防止篡改客户端抢跑
-    const targetWord = `UNO-${room.qteWord}`;
-    if (word !== targetWord) return;
+    // 打字模式需校验验证码；按钮模式抢先按下即有效，不涉及随机数
+    if (room.qteMode === 'type' && word !== `UNO-${room.qteWord}`) return;
+
+    // 记录该玩家在QTE中的最佳反应成绩（成功抢答/抢断他人，取全程最快，从同步弹出时刻起算，ms）
+    const _reaction = Math.max(0, Date.now() - room.qteRevealAt);
+    if (player.bestReactionMs == null || _reaction < player.bestReactionMs) player.bestReactionMs = _reaction;
 
     log(room.id, 'INFO', `玩家(${player.name})提交了QTE`);
     
@@ -659,14 +741,22 @@ function handleQTESubmit(room, player, word, clientTime) {
 }
 
 function endGame(room) {
-    room.results = [...room.players].sort((a, b) => a.hand.length - b.hand.length).map(p => ({
+    // 被淘汰者一律排在最后（手牌为0，不能因此判为赢家）
+    room.results = [...room.players].sort((a, b) => {
+        if (!!a.eliminated !== !!b.eliminated) return a.eliminated ? 1 : -1;
+        return a.hand.length - b.hand.length;
+    }).map(p => ({
         id: p.id,
         name: p.name,
-        handCount: p.hand.length
+        handCount: p.hand.length,
+        eliminated: !!p.eliminated,
+        reactionMs: (typeof p.bestReactionMs === 'number') ? p.bestReactionMs : null
     }));
+    room.resultsByElimination = !!room.endedByElimination; // 结算展示反应时间时用
     room.state = 'lobby';
     room.players.forEach(p => {
         p.hand = [];
+        p.eliminated = false;
         if (!p.isBot && !room.isBigScreen) {
             p.ready = false;
             p.hasSeenResults = false;
@@ -675,6 +765,11 @@ function endGame(room) {
             p.hasSeenResults = room.isBigScreen ? false : true;
         }
     });
+    // 回到大厅：房主重新排到第一个玩家框（开局曾打乱顺序）
+    if (!room.isBigScreen) {
+        const hostIdx = room.players.findIndex(p => p.isHost);
+        if (hostIdx > 0) { const h = room.players.splice(hostIdx, 1)[0]; room.players.unshift(h); }
+    }
     if (room.spectators) {
         room.spectators.forEach(s => {
             s.hasSeenResults = false;
@@ -685,31 +780,37 @@ function endGame(room) {
 }
 
 function checkAITurn(room) {
-    if (room.state !== 'ingame') return;
+    if (room.state !== 'ingame' || room.frozen) return;
     const currentPlayer = room.players[room.turnIndex];
     if (!currentPlayer.isBot) return;
 
     if (room.aiTimer) clearTimeout(room.aiTimer);
 
-    const delay = 1000 + Math.random() * 1000;
+    // 拟真思考耗时：分档随机——多数很快出手，少数中等，偶尔"沉思"更久，整体更快也更灵活
+    const r = Math.random();
+    let delay;
+    if (r < 0.55) delay = 250 + Math.random() * 450;        // 55% 快手 0.25–0.7s
+    else if (r < 0.85) delay = 700 + Math.random() * 700;   // 30% 中速 0.7–1.4s
+    else delay = 1400 + Math.random() * 1200;               // 15% 沉思 1.4–2.6s
     room.aiTimer = setTimeout(() => {
         room.aiTimer = null; // 定时器已触发，清空后 urge 才能正确判断"AI是否仍在思考"
         executeAITurn(room, currentPlayer);
     }, delay);
 }
 
-// 认罚接下叠加的所有罚牌，回合结束（真人点按钮 / AI 无牌可叠时调用）
+// 认罚接下叠加的所有罚牌，回合结束（玩家点击牌堆 / AI 无牌可叠时调用）
 function resolveTakeStack(room, player) {
     const amount = room.drawStack;
     room.drawStack = 0;
     room.stackValue = 0;
     const pen = drawCards(room, amount);
     player.hand.push(...pen);
-    log(room.id, 'INFO', `玩家(${player.name})认罚接下${pen.length}张`);
+    const willElim = room.version === 'nomercy' && player.hand.length >= 25; // 这次接牌将导致其淘汰
+    log(room.id, 'INFO', `玩家(${player.name})接下叠加的${pen.length}张`);
     if (!player.isBot && player.ws && player.ws.readyState === 1) {
         player.ws.send(JSON.stringify({ type: 'draw_card_result', cards: pen, playerId: player.id }));
     }
-    broadcastEvent(room.id, 'draw_card', { playerId: player.id, count: pen.length, isPenalty: true });
+    broadcastEvent(room.id, 'draw_card', { playerId: player.id, count: pen.length, isPenalty: true, simultaneous: pen.length > 1, willEliminate: willElim });
     const ended = checkEliminations(room);
     if (ended || room.state !== 'ingame') return;
     advanceTurn(room, 1);
@@ -757,12 +858,19 @@ function pickAICard(room, bot, playableCards) {
 }
 
 function executeAITurn(room, bot) {
-    if (room.state !== 'ingame') return;
+    if (room.state !== 'ingame' || room.frozen) return;
     if (room.players[room.turnIndex].id !== bot.id) return;
     if (room.animating) return; // 上一次出牌的结算动画还没走完，避免被 urge 等重入触发二次判定
     if (room.pendingSwap) return; // 等待换手选择期间不出牌
 
-    // 毫不留情叠加进行中：能叠就叠（挑数值最小的合规牌），否则认罚接牌
+    // 挂起"逐张摸牌直到指定色"：AI 摸到则跳过，否则摸一张（并自动续摸）
+    if (room.pendingDraw) {
+        if (room.pendingDraw.satisfied) { room.pendingDraw = null; advanceTurn(room, 1); }
+        else resolveUntilDrawOne(room, bot);
+        return;
+    }
+
+    // 毫不留情叠加进行中：能叠就叠（挑数值最小的合规牌），否则接下叠加的牌
     if (room.drawStack > 0) {
         const qualifying = bot.hand.filter(c => STACKABLE.has(c.type) && getDrawValue(c) >= room.stackValue);
         if (qualifying.length > 0) {
@@ -825,10 +933,14 @@ function applyCardEffect(room, card, player) {
 
     // 毫不留情：加牌类进入叠加流程，交给下一位决定叠还是认罚（不立即罚抽/跳过）
     if (room.version === 'nomercy' && STACKABLE.has(type)) {
-        if (type === 'wild-rev4') applyReverse(room);
         room.drawStack += getDrawValue(card);
         room.stackValue = getDrawValue(card);
         log(room.id, 'INFO', `叠加罚牌累计 ${room.drawStack} 张`);
+        // wild-rev4 的反转：仅2人(或剩2人)时反转等同跳过对方，叠加罚牌回到自己头上（可再叠加甩回对方）
+        if (type === 'wild-rev4') {
+            if (activeCount(room) === 2) return { skip: 2 };
+            applyReverse(room);
+        }
         return { skip: 1 };
     }
 
@@ -857,8 +969,9 @@ function applyCardEffect(room, card, player) {
             return { skip: 1 };
         case 'wild-roulette':                 // 毫不留情 选色轮盘
         case 'wild-drawcolor':                // 翻转版深色 万能指定色抽
-            rouletteDraw(room, room.currentColor);
-            return { skip: 2 };
+            // 交给下家：轮到其回合并挂起"逐张摸牌直到指定色"，由其点击牌堆完成
+            room.pendingDraw = { untilColor: room.currentColor, satisfied: false };
+            return { skip: 1 };
         case 'flip': {                        // 翻转版 翻面
             room.side = room.side === 'light' ? 'dark' : 'light';
             applySideAll(room);
@@ -868,7 +981,14 @@ function applyCardEffect(room, card, player) {
             return { skip: 1 };
         }
         case '7':                             // 毫不留情 7 号换手
-            if (room.version === 'nomercy') { startSwap(room, player); return { await: true }; }
+            if (room.version === 'nomercy') {
+                if (room.sevenSwapTarget) {   // 真人已先选好目标：直接换手（doSwap 内部推进回合）
+                    const t = room.sevenSwapTarget; room.sevenSwapTarget = null;
+                    doSwap(room, player.id, t);
+                    return { await: true };
+                }
+                startSwap(room, player); return { await: true }; // AI / QTE 补算：即时选择
+            }
             return { skip: 1 };
         case '0':                             // 毫不留情 0 号全体传手
             if (room.version === 'nomercy') passAllHands(room);
@@ -878,8 +998,9 @@ function applyCardEffect(room, card, player) {
     }
 }
 
-function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
-    if (room.animating) return; // Prevent actions during animation
+function playCardLogic(room, player, cardId, declaredColor, isCheat = false, sevenTarget = null) {
+    if (room.animating || room.frozen) return; // 结算动画 / 淘汰冻结期间禁止出牌
+    if (room.pending7 && !sevenTarget) return; // 正在等待出7选目标：拦截其它出牌，仅放行确定目标后的补出
     const cardIndex = player.hand.findIndex(c => c.id === cardId);
     if (cardIndex === -1) return;
     let card = player.hand[cardIndex];
@@ -887,8 +1008,9 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
     const playable = isPlayable(room, player, card);
 
     if (isCheat && !player.isBot) {
+        if (room.pendingDraw) return; // 持续摸牌/摸到指定色后不能作弊出牌
         if (!playable) {
-            log(room.id, 'INFO', `[作弊] 玩家(${player.name})打出不合法牌，强行要求变色为 +4 牌`);
+            log(room.id, 'INFO', `[作弊] 玩家(${player.name})打出不合法牌，要求选色变为作弊牌`);
             if (player.ws && player.ws.readyState === 1) {
                 player.ws.send(JSON.stringify({ type: 'cheat_need_color', cardId: card.id }));
             }
@@ -907,6 +1029,19 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
         return;
     }
 
+    // 毫不留情出 7：真人先选择交换目标，选好后再真正出牌并播放动画
+    if (room.version === 'nomercy' && card.type === '7' && !player.isBot && !sevenTarget) {
+        room.pending7 = { playerId: player.id, cardId: card.id, declaredColor };
+        const targets = room.players.filter(p => !p.eliminated && p.id !== player.id)
+            .map(p => ({ id: p.id, name: p.name, handCount: p.hand.length }));
+        broadcastRoom(room.id);
+        if (player.ws && player.ws.readyState === 1) {
+            player.ws.send(JSON.stringify({ type: 'choose_swap_target', targets }));
+        }
+        return;
+    }
+    if (sevenTarget) room.sevenSwapTarget = sevenTarget; // 供 applyCardEffect 直接换手，不再二次弹窗
+
     player.hand.splice(cardIndex, 1);
     room.discardPile.push(card);
     
@@ -921,7 +1056,14 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
     log(room.id, 'INFO', `玩家(${player.name})打出了 ${colorMsg} 的 ${card.type}`);
     room.animating = true;
     broadcastEvent(room.id, 'play_card', { playerId: player.id, card, declaredColor: room.currentColor });
-    broadcastRoom(room.id); 
+    // 清色：与出牌同时告知客户端被清掉的同色牌，好让它们一起播放出牌动画
+    if (card.type === 'discard-all') {
+        const alsoDiscarded = player.hand.filter(c => c.color === card.color);
+        if (alsoDiscarded.length) {
+            broadcastEvent(room.id, 'discard_all', { playerId: player.id, cards: alsoDiscarded, mainId: card.id });
+        }
+    }
+    broadcastRoom(room.id);
 
     setTimeout(() => {
         room.animating = false;
@@ -931,9 +1073,10 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false) {
             const removed = player.hand.filter(c => c.color === card.color);
             player.hand = player.hand.filter(c => c.color !== card.color);
             if (removed.length) {
-                room.discardPile.push(...removed);
-                log(room.id, 'INFO', `清色弃掉${removed.length}张${card.color}`);
-                // 手牌缩减，靠随后的 room_state 广播刷新客户端
+                // 被清的同色牌垫在清色牌下方，保持清色牌始终是弃牌堆顶牌（下家以它为底牌出牌）
+                if (room.discardPile[room.discardPile.length - 1] === card) room.discardPile.pop();
+                room.discardPile.push(...removed, card);
+                log(room.id, 'INFO', `清色弃掉${removed.length}张${card.color}，清色牌保持顶牌`);
             }
         }
 
@@ -1017,6 +1160,9 @@ function handleDisconnect(ws) {
                 const newHost = room.players.find(p => !p.isBot);
                 if (newHost) {
                     newHost.isHost = true;
+                    // 房主永远排在第一个玩家框（直接换位，无动画）
+                    const idx = room.players.indexOf(newHost);
+                    if (idx > 0) { room.players.splice(idx, 1); room.players.unshift(newHost); }
                     log(room.id, 'INFO', `房主变更 -> ${newHost.name}`);
                 }
             }
@@ -1025,6 +1171,9 @@ function handleDisconnect(ws) {
     } else {
         log(room.id, 'INFO', `游戏进行中，玩家(${player.name})由AI接管`);
         player.isBot = true;
+        player.fromDisconnect = true; // 标记为掉线顶替产生的AI（不可被同名玩家中途顶替）
+        // 若该玩家正卡在"出7选目标"，清掉挂起状态，交给AI接管后正常出牌
+        if (room.pending7 && room.pending7.playerId === player.id) room.pending7 = null;
         if (room.players.every(p => p.isBot)) {
             log(room.id, 'INFO', '房间内全为AI，自动销毁');
             if (room.aiTimer) clearTimeout(room.aiTimer);
@@ -1174,6 +1323,7 @@ wss.on('connection', (ws, req) => {
                     drawStack: 0,
                     stackValue: 0,
                     pendingSwap: null,
+                    pendingDraw: null,
                     state: 'lobby',
                     players: [{
                         id: clientId,
@@ -1210,10 +1360,14 @@ wss.on('connection', (ws, req) => {
                     }
                 } else {
                     for (let i = 0; i < bots; i++) {
+                        // 机器人名字不与房内已有玩家/机器人重复
+                        let botName = getRandomBotName();
+                        let guard = 0;
+                        while (room.players.some(p => p.name === botName) && guard < 40) { botName = getRandomBotName(); guard++; }
                         room.players.push({
                             id: generateId(),
                             ws: null,
-                            name: getRandomBotName(),
+                            name: botName,
                             isHost: false,
                             isBot: true,
                             ready: true,
@@ -1250,10 +1404,28 @@ wss.on('connection', (ws, req) => {
                     return;
                 }
 
-                const nameTaken = room.players.some(p => p.name === playerName) ||
-                    (room.spectators && room.spectators.some(s => s.name === playerName));
-                if (nameTaken) {
+                const sameNamePlayer = room.players.find(p => p.name === playerName);
+                const sameNameSpec = room.spectators && room.spectators.some(s => s.name === playerName);
+                // 仅"掉线顶替产生的AI"可被同名玩家在任何阶段顶替（即断线重连夺回座位）；其他AI一律不可顶替
+                const takeable = sameNamePlayer && sameNamePlayer.isBot && sameNamePlayer.fromDisconnect;
+
+                if (sameNameSpec || (sameNamePlayer && !takeable)) {
                     sendError(ws, '房间内已有相同昵称的玩家，请更换昵称');
+                    return;
+                }
+
+                if (takeable) {
+                    // 顶替该AI：沿用其座位与id，真人接管
+                    if (room.aiTimer) { clearTimeout(room.aiTimer); room.aiTimer = null; }
+                    sameNamePlayer.ws = ws;
+                    sameNamePlayer.isBot = false;
+                    sameNamePlayer.fromDisconnect = false;
+                    if (room.state === 'lobby') sameNamePlayer.ready = false;
+                    clients.set(ws, { id: sameNamePlayer.id, roomId: room.id, name: playerName });
+                    updateClientActivity(ws);
+                    log(room.id, 'INFO', `玩家(${playerName})顶替了同名AI的座位`);
+                    broadcastRoom(room.id);
+                    if (room.state === 'ingame') checkAITurn(room); // 若轮到别的AI则继续
                     return;
                 }
 
@@ -1312,8 +1484,8 @@ wss.on('connection', (ws, req) => {
                     const target = room.players[targetIdx];
                     log(room.id, 'INFO', `房主踢出了${target.isBot ? 'AI' : '玩家'}(${target.name})`);
                     if (!target.isBot && target.ws) {
-                        sendError(target.ws, '你已被房主踢出房间');
-                        target.ws.close();
+                        target.ws.send(JSON.stringify({ type: 'kicked', reason: '你已被房主踢出房间' }));
+                        try { target.ws.close(); } catch (e) {}
                     } else if (target.isBot) {
                         room.players.splice(targetIdx, 1);
                         broadcastRoom(room.id);
@@ -1329,6 +1501,34 @@ wss.on('connection', (ws, req) => {
                     log(room.id, 'INFO', `玩家(${player.name})状态变为: ${player.ready ? '已准备' : '未准备'}`);
                     broadcastRoom(room.id);
                 }
+            }
+            else if (data.type === 'add_bot') {
+                // 房主在等待页面为空位一键添加AI
+                const room = rooms.get(clientData.roomId);
+                if (!room || room.state !== 'lobby' || room.isBigScreen) return;
+                const host = room.players.find(p => p.id === clientData.id);
+                if (!host || !host.isHost) { sendError(ws, '只有房主可以添加AI'); return; }
+                if (room.players.length >= room.maxPlayers) { sendError(ws, '房间已满'); return; }
+                let botName = getRandomBotName();
+                let guard = 0;
+                while (room.players.some(p => p.name === botName) && guard < 30) { botName = getRandomBotName(); guard++; }
+                room.players.push({
+                    id: generateId(), ws: null, name: botName, isHost: false, isBot: true,
+                    ready: true, hasSeenResults: true, hand: []
+                });
+                log(room.id, 'INFO', `房主添加了AI(${botName})`);
+                broadcastRoom(room.id);
+            }
+            else if (data.type === 'update_room_settings') {
+                // 房主在等待页面修改 UNO抢答方式 / 游戏版本
+                const room = rooms.get(clientData.roomId);
+                if (!room || room.state !== 'lobby' || room.isBigScreen) return;
+                const host = room.players.find(p => p.id === clientData.id);
+                if (!host || !host.isHost) { sendError(ws, '只有房主可以修改房间设置'); return; }
+                if (data.qteMode === 'type' || data.qteMode === 'button') room.qteMode = data.qteMode;
+                if (['classic', 'flip', 'nomercy'].includes(data.version)) room.version = data.version;
+                log(room.id, 'INFO', `房主修改房间设置 -> 版本:${room.version} 抢答:${room.qteMode}`);
+                broadcastRoom(room.id);
             }
             else if (data.type === 'start_game') {
                 const room = rooms.get(clientData.roomId);
@@ -1349,6 +1549,8 @@ wss.on('connection', (ws, req) => {
 
                 log(room.id, 'INFO', `游戏开始（版本：${room.version}）`);
                 room.state = 'ingame';
+                // 开局打乱玩家座位顺序（大屏模式的伪玩家保持固定编号，不打乱）
+                if (!room.isBigScreen) shuffle(room.players);
                 room.deck = createDeck(room.version);
                 room.discardPile = [];
                 room.direction = 1;
@@ -1358,8 +1560,13 @@ wss.on('connection', (ws, req) => {
                 room.drawStack = 0;
                 room.stackValue = 0;
                 room.pendingSwap = null;
-                room.removedPile = [];
-                room.players.forEach(p => { p.eliminated = false; });
+                room.pendingDraw = null;
+                room.pending7 = null;
+                room.sevenSwapTarget = null;
+                room.frozen = false;
+                if (room.freezeTimer) { clearTimeout(room.freezeTimer); room.freezeTimer = null; }
+                room.endedByElimination = false;
+                room.players.forEach(p => { p.eliminated = false; p.bestReactionMs = null; });
 
                 room.players.forEach(p => {
                     const dealt = drawCards(room, 7);
@@ -1392,12 +1599,13 @@ wss.on('connection', (ws, req) => {
                 broadcastRoom(room.id);
                 
                 room.players.forEach(p => {
-                    broadcastEvent(room.id, 'draw_card', { playerId: p.id, count: 7 });
+                    broadcastEvent(room.id, 'draw_card', { playerId: p.id, count: 7, simultaneous: true, isDeal: true });
                 });
 
+                // 发牌动画已缩短，首个 AI 回合的等待也相应缩短
                 setTimeout(() => {
                     checkAITurn(room);
-                }, 2000);
+                }, 900);
             }
             else if (data.type === 'play_card') {
                 if (typeof data.cardId !== 'string' || typeof data.declaredColor !== 'string') return;
@@ -1418,31 +1626,32 @@ wss.on('connection', (ws, req) => {
             else if (data.type === 'play_cheat_card') {
                 if (typeof data.cardId !== 'string' || typeof data.declaredColor !== 'string') return;
                 const room = rooms.get(clientData.roomId);
-                if (!room || room.state !== 'ingame') return;
+                if (!room || room.state !== 'ingame' || room.frozen) return;
+                if (room.pendingDraw) return; // 持续摸牌/摸到指定色后不能作弊出牌
                 const player = room.players[room.turnIndex];
-                
+
                 if (room.isBigScreen) {
                     if (player.ws !== ws) return;
                 } else {
                     if (player.id !== clientData.id) return;
                 }
-                
-                const validColors = ['red', 'yellow', 'blue', 'green'];
-                if (!validColors.includes(data.declaredColor)) return;
-                
+
+                if (!VALID_COLORS.includes(data.declaredColor)) return;
+
                 const cardIndex = player.hand.findIndex(c => c.id === data.cardId);
                 if (cardIndex !== -1) {
                     let card = player.hand[cardIndex];
-                    log(room.id, 'INFO', `[作弊成功] 玩家(${player.name})将手中 ${card.color} ${card.type} 变为了超级+4！并选择了颜色 ${data.declaredColor}`);
+                    // 毫不留情版作弊牌为 万能+10（可在叠加过程中打出）；其余版本为超级 +4
+                    const cheatType = room.version === 'nomercy' ? 'wild+10' : '+4';
+                    log(room.id, 'INFO', `[作弊成功] 玩家(${player.name})将手中 ${card.color} ${card.type} 变为了 ${cheatType}，颜色 ${data.declaredColor}`);
                     card.color = 'black';
-                    card.type = '+4';
-                    
+                    card.type = cheatType;
                     playCardLogic(room, player, data.cardId, data.declaredColor, false);
                 }
             }
             else if (data.type === 'draw_card') {
                 const room = rooms.get(clientData.roomId);
-                if (!room || room.state !== 'ingame' || room.animating) return;
+                if (!room || room.state !== 'ingame' || room.animating || room.frozen) return;
                 const player = room.players[room.turnIndex];
                 
                 if (room.isBigScreen) {
@@ -1451,8 +1660,13 @@ wss.on('connection', (ws, req) => {
                     if (player.id !== clientData.id) return;
                 }
                 
+                // 点击牌堆的三种含义：逐张持续摸牌 / 接下叠加 / 普通摸一张
+                if (room.pendingDraw) {
+                    if (!room.pendingDraw.satisfied) resolveUntilDrawOne(room, player); // 已摸到指定色则忽略，等其点跳过
+                    return;
+                }
                 if (room.drawStack > 0) {
-                    sendError(ws, '叠加罚牌进行中，请点击认罚接牌');
+                    resolveTakeStack(room, player);
                     return;
                 }
                 if (room.hasDrawnThisTurn) {
@@ -1468,7 +1682,7 @@ wss.on('connection', (ws, req) => {
                     if (ws && ws.readyState === 1) {
                         ws.send(JSON.stringify({ type: 'draw_card_result', cards: drawnCards, playerId: player.id }));
                     }
-                    broadcastRoom(room.id); 
+                    broadcastRoom(room.id);
                     broadcastEvent(room.id, 'draw_card', { playerId: player.id, count: 1 });
                 } else {
                     sendError(ws, '牌堆已空，请点击跳过');
@@ -1476,7 +1690,7 @@ wss.on('connection', (ws, req) => {
             }
             else if (data.type === 'skip_turn') {
                 const room = rooms.get(clientData.roomId);
-                if (!room || room.state !== 'ingame') return;
+                if (!room || room.state !== 'ingame' || room.frozen) return;
                 const player = room.players[room.turnIndex];
                 
                 if (room.isBigScreen) {
@@ -1486,7 +1700,15 @@ wss.on('connection', (ws, req) => {
                 }
                 
                 if (room.drawStack > 0) {
-                    sendError(ws, '叠加罚牌进行中，请点击认罚接牌');
+                    sendError(ws, '请点击牌堆接下叠加的牌');
+                    return;
+                }
+                // 逐张摸牌：摸到指定色后可点跳过结束回合；未摸到则不能跳过
+                if (room.pendingDraw) {
+                    if (!room.pendingDraw.satisfied) { sendError(ws, '请点击牌堆继续摸牌，直到摸到指定颜色'); return; }
+                    room.pendingDraw = null;
+                    log(room.id, 'INFO', `玩家(${player.name})摸到指定色后跳过回合`);
+                    advanceTurn(room, 1);
                     return;
                 }
                 if (!room.hasDrawnThisTurn) {
@@ -1496,34 +1718,46 @@ wss.on('connection', (ws, req) => {
                 log(room.id, 'INFO', `玩家(${player.name})跳过回合`);
                 advanceTurn(room, 1);
             }
-            else if (data.type === 'take_stack') {
-                // 毫不留情：认罚接下叠加的所有罚牌
-                const room = rooms.get(clientData.roomId);
-                if (!room || room.state !== 'ingame' || room.animating) return;
-                if (!room.drawStack || room.drawStack <= 0) return;
-                const player = room.players[room.turnIndex];
-                if (room.isBigScreen) {
-                    if (player.ws !== ws) return;
-                } else {
-                    if (player.id !== clientData.id) return;
-                }
-                resolveTakeStack(room, player);
-            }
             else if (data.type === 'swap_hands') {
-                // 毫不留情：打出 7 后选择换手目标
+                // 毫不留情 7 号换手：选择目标
                 if (typeof data.targetId !== 'string') return;
                 const room = rooms.get(clientData.roomId);
-                if (!room || room.state !== 'ingame' || !room.pendingSwap) return;
+                if (!room || room.state !== 'ingame' || room.frozen) return;
+
+                // 情况A：出 7 的"先选目标"——选好后再真正出牌并播放动画
+                if (room.pending7) {
+                    const p7 = room.pending7;
+                    const byPlayer = room.players.find(p => p.id === p7.playerId);
+                    if (!byPlayer) { room.pending7 = null; return; }
+                    if (room.isBigScreen ? byPlayer.ws !== ws : byPlayer.id !== clientData.id) return;
+                    const target = room.players.find(p => p.id === data.targetId);
+                    if (!target || target.eliminated || target.id === byPlayer.id) return;
+                    room.pending7 = null;
+                    playCardLogic(room, byPlayer, p7.cardId, p7.declaredColor, false, data.targetId);
+                    return;
+                }
+
+                // 情况B：出牌后才提示的换手（AI / QTE 补算路径）
+                if (!room.pendingSwap) return;
                 const byPlayer = room.players.find(p => p.id === room.pendingSwap.byId);
                 if (!byPlayer) return;
-                if (room.isBigScreen) {
-                    if (byPlayer.ws !== ws) return;
-                } else {
-                    if (byPlayer.id !== clientData.id) return;
-                }
+                if (room.isBigScreen ? byPlayer.ws !== ws : byPlayer.id !== clientData.id) return;
                 const target = room.players.find(p => p.id === data.targetId);
                 if (!target || target.eliminated || target.id === byPlayer.id) return;
                 doSwap(room, byPlayer.id, data.targetId);
+            }
+            else if (data.type === 'cancel_seven') {
+                // 点空白关闭换手弹窗
+                const room = rooms.get(clientData.roomId);
+                if (!room || room.state !== 'ingame') return;
+                if (room.pending7 && room.pending7.playerId === clientData.id) {
+                    room.pending7 = null; // 取消出 7：牌留在手里，仍是该玩家回合
+                    broadcastRoom(room.id);
+                } else if (room.pendingSwap && room.pendingSwap.byId === clientData.id) {
+                    // 已出牌无法真正取消：自动选一个合法目标完成换手
+                    const t = room.players.find(p => !p.eliminated && p.id !== clientData.id);
+                    if (t) doSwap(room, clientData.id, t.id);
+                }
             }
             else if (data.type === 'urge') {
                 const room = rooms.get(clientData.roomId);
@@ -1544,22 +1778,28 @@ wss.on('connection', (ws, req) => {
                 }
             }
             else if (data.type === 'qte_submit') {
-                if (typeof data.word !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.isBigScreen) return; // 大屏模式禁用QTE抢答
+                // 输入模式必须带验证码字符串；按钮模式抢先按下即可（无 word）
+                if (room.qteMode === 'type' && typeof data.word !== 'string') return;
                 const player = room.players.find(p => p.id === clientData.id);
                 if (player) {
-                    handleQTESubmit(room, player, data.word, Date.now());
+                    handleQTESubmit(room, player, typeof data.word === 'string' ? data.word : '', Date.now());
                 }
             }
             else if (data.type === 'change_spectator_target') {
                 if (typeof data.targetId !== 'string') return;
                 const room = rooms.get(clientData.roomId);
-                if (!room || !clientData.isSpectator) return;
-                const spec = room.spectators.find(s => s.id === clientData.id);
-                if (spec && room.players.find(p => p.id === data.targetId)) {
-                    spec.targetId = data.targetId;
-                    broadcastRoom(room.id); 
+                if (!room) return;
+                const target = room.players.find(p => p.id === data.targetId && !p.eliminated);
+                if (!target) return;
+                if (clientData.isSpectator) {
+                    const spec = room.spectators.find(s => s.id === clientData.id);
+                    if (spec) { spec.targetId = data.targetId; broadcastRoom(room.id); }
+                } else {
+                    // 被淘汰玩家也可切换观看目标
+                    const me = room.players.find(p => p.id === clientData.id);
+                    if (me && me.eliminated) { me.specTarget = data.targetId; broadcastRoom(room.id); }
                 }
             }
             else if (data.type === 'chat') {
