@@ -379,7 +379,7 @@
         .color-btn.purple { background-color: var(--purple); }
         /* 毫不留情：被淘汰玩家 */
         .game-player-card.eliminated { opacity: 0.4; filter: grayscale(0.9); }
-        .gpc-eliminated-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-12deg); background: var(--red); color: #fff; font-size: 12px; font-weight: 900; padding: 2px 8px; border-radius: 6px; letter-spacing: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+        .gpc-eliminated-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-12deg); background: var(--red); color: #fff; font-size: 12px; font-weight: 900; padding: 2px 8px; border-radius: 6px; letter-spacing: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.5); white-space: nowrap; }
         /* 版本 / 翻面 指示 */
         /* 换牌动画期间隐藏我的真实手牌，动画结束再淡入新手牌（头像框另做位移动画） */
         body.swap-animating .my-hand { opacity: 0; transition: opacity 0.15s ease; }
@@ -486,8 +486,6 @@
                 --card-h: 90px;
                 --radius: 8px;
             }
-            /* 窄屏淘汰徽标缩小，避免旋转后溢出或换行 */
-            .elim-badge-big { font-size: 40px; letter-spacing: 6px; padding: 8px 22px 8px 28px; }
             #chat-widget { width: 250px; height: 300px; right: -250px; bottom: 60px; bottom: calc(60px + env(safe-area-inset-bottom)); }
             #chat-widget.open { right: 20px; }
             #chat-toggle-btn { width: 40px; height: 40px; bottom: 30px; left: -60px; font-size: 20px; }
