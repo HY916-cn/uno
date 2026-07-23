@@ -1495,9 +1495,7 @@
                     isSpectator = data.isSpectator || false;
                    isEliminatedSelf = data.eliminatedSelf || false;
                    spectatorTargetId = data.spectatorTargetId || null;
-                    // 被淘汰：手牌区清空，后续观战显示牌背
-                    if (isEliminatedSelf) myHand = [];
-                    
+
                     if ($('join-room-modal').classList.contains('active')) {
                         hideModal('join-room-modal');
                     }
@@ -1915,22 +1913,7 @@
                     const flipping = !!window.__flipAnim;
                     const oldFaces = window.__flipOldFaces || {};
                     const hideIds = window.__discardHideIds; // 清色动画期间要隐藏的真牌（扛住重渲染）
-                    if (isEliminatedSelf) {
-                        // 被淘汰后手牌区显示牌背（观战视角）
-                        const targetPlayer = currentRoom.players.find(p => p.id === spectatorTargetId);
-                        const count = targetPlayer ? targetPlayer.handCount : 0;
-                        const maxDisplay = Math.min(count, 15);
-                        const isMobile = window.innerWidth <= 600;
-                        const cardW = isMobile ? 25 : 40;
-                        const containerW = isMobile ? 68 : 100;
-                        const step = maxDisplay > 1 ? Math.min(10, (containerW - cardW) / (maxDisplay - 1)) : 0;
-                        const startLeft2 = (containerW - (cardW + (maxDisplay - 1) * step)) / 2;
-                        let backsHtml = '';
-                        for (let i = 0; i < maxDisplay; i++) {
-                            backsHtml += `<div class="gpc-card-back" style="position:absolute; left:${startLeft2 + i * step}px; z-index:${i}; width:${cardW}px; height:${isMobile ? 38 : 60}px;"></div>`;
-                        }
-                        $('my-hand').innerHTML = backsHtml;
-                    } else {
+                    // 被淘汰后与普通观战一致：手牌区显示被观战玩家的真实手牌（服务端已下发其手牌到 myHand）
                     $('my-hand').innerHTML = myHand.map((c, i) => {
                         const leftPos = startLeft + (i * step);
                         const isAnimating = (i >= myHand.length - qLen) || (hideIds && hideIds.has(c.id));
@@ -1942,7 +1925,6 @@
                         if (flipping && oldFaces[c.id]) faceCard = { ...c, color: oldFaces[c.id].color, type: oldFaces[c.id].type };
                         return `<div class="hand-card${flipCls}" style="${style}" onclick="tryPlayCard('${c.id}')">${getCardHTML(faceCard)}</div>`;
                     }).join('');
-                    }
                     if (flipping) {
                         // 每张牌翻到一半（约动画中点）时，把牌面就地替换为新面（保留元素以不打断动画）
                         myHand.forEach((c, i) => {
