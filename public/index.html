@@ -388,7 +388,7 @@
             transition: opacity 0.4s ease, left 0.75s cubic-bezier(0.5,0,0.4,1), top 0.75s cubic-bezier(0.5,0,0.4,1), transform 0.75s cubic-bezier(0.5,0,0.4,1); }
         .elim-fly.show { opacity: 1; }
         .elim-fly.move { transform: translate(-50%, -50%) scale(0.205); }
-        .elim-badge-big { background: var(--red); color: #fff; font-weight: 900; font-size: 58px; letter-spacing: 10px; padding: 10px 30px 10px 40px; border-radius: 30px; box-shadow: 0 12px 36px rgba(238,50,51,0.5); transform: rotate(-12deg); }
+        .elim-badge-big { background: var(--red); color: #fff; font-weight: 900; font-size: 58px; letter-spacing: 10px; padding: 10px 30px 10px 40px; border-radius: 30px; box-shadow: 0 12px 36px rgba(238,50,51,0.5); transform: rotate(-12deg); white-space: nowrap; }
         body.low-perf .elim-fly { transition: opacity 0.25s ease; }
         /* 叠加罚牌横幅：绝对定位悬浮在出牌区正上方，显隐不影响布局 */
         #stack-banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% - var(--card-h) / 2 - 34px)); z-index: 6; white-space: nowrap; display: none; align-items: center; justify-content: center; gap: 6px; padding: 7px 18px; border-radius: 30px; background: rgba(238,50,51,0.92); color: #fff; font-weight: bold; font-size: 15px; box-shadow: 0 4px 12px rgba(238,50,51,0.4); }
@@ -486,6 +486,8 @@
                 --card-h: 90px;
                 --radius: 8px;
             }
+            /* 窄屏淘汰徽标缩小，避免旋转后溢出或换行 */
+            .elim-badge-big { font-size: 40px; letter-spacing: 6px; padding: 8px 22px 8px 28px; }
             #chat-widget { width: 250px; height: 300px; right: -250px; bottom: 60px; bottom: calc(60px + env(safe-area-inset-bottom)); }
             #chat-widget.open { right: 20px; }
             #chat-toggle-btn { width: 40px; height: 40px; bottom: 30px; left: -60px; font-size: 20px; }
