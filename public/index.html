@@ -342,7 +342,7 @@
         .lb-box { background: rgba(0,0,0,0.3); border-radius: 8px; display: flex; align-items: center; transition: background 0.2s; }
         .lb-box:hover { background: rgba(255,255,255,0.1); }
         .lb-main { flex: 1; padding: 12px 18px; gap: 6px; min-width: 0; }
-        .lb-cards-box { padding: 12px 16px; min-width: 72px; justify-content: center; }
+        .lb-cards-box { padding: 12px 16px; flex: 0 0 92px; box-sizing: border-box; justify-content: center; }
         .lb-rank { font-size: 18px; font-weight: bold; width: 26px; color: rgba(255,255,255,0.5); flex-shrink: 0; }
         .lb-row:nth-child(1) .lb-rank { color: #C0C0C0; }
         .lb-row:nth-child(2) .lb-rank { color: #CD7F32; }
@@ -407,7 +407,7 @@
         #rules-modal .modal-content { width: 480px; max-width: 90vw; }
         .rules-body { overflow-y: auto; max-height: 65vh; padding-right: 8px; display: flex; flex-direction: column; gap: 18px; text-align: left; }
         /* 游戏说明标签页 */
-        .rules-tabs { display: flex; gap: 6px; position: sticky; top: 0; background: rgba(30,30,30,0.92); padding: 4px 0 8px; z-index: 2; }
+        .rules-tabs { display: flex; gap: 6px; position: sticky; top: 0; background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 8px 0; z-index: 2; }
         .rules-tab { flex: 1; padding: 8px 4px; font-size: 13px; border-radius: 10px; }
         .rules-tab.active { background: var(--red); border-color: var(--red); font-weight: bold; }
         .rules-panel { display: none; flex-direction: column; gap: 18px; }
@@ -476,10 +476,13 @@
         body.low-perf #chat-toggle-btn,
         body.low-perf #bigscreen-modal,
         body.low-perf .modal-overlay,
-        body.low-perf #disconnect-modal {
+        body.low-perf #disconnect-modal,
+        body.low-perf .rules-tabs {
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
         }
+        /* 低性能模式无磨砂：说明标签栏改用不透明底避免透出滚动内容 */
+        body.low-perf .rules-tabs { background: #262626; }
         /* 低性能模式：toast 的 fadeOut 动画会被压成瞬间完成导致直接透明消失，这里强制保持可见（仍由 JS 定时移除） */
         body.low-perf .toast { animation: none !important; opacity: 1 !important; }
 
@@ -2194,10 +2197,14 @@
         function canPlayClient(card) {
             if (!currentRoom || !card) return false;
             if (currentRoom.pendingDraw) return false;                 // 逐张摸牌期间不能出牌
-            if ((currentRoom.drawStack || 0) > 0) {                    // 叠加：只能叠等值或更高的加牌
+            if ((currentRoom.drawStack || 0) > 0) {                    // 叠加：等值或更高，且仍需匹配颜色/类型（万能可任意叠）
                 const DRAW_VAL = { '+2': 2, '+4': 4, 'wild-rev4': 4, 'wild+6': 6, 'wild+10': 10 };
                 const v = DRAW_VAL[card.type] || 0;
-                return v > 0 && v >= (currentRoom.stackValue || 0);
+                if (v <= 0 || v < (currentRoom.stackValue || 0)) return false;
+                if (card.color === 'black') return true;
+                if (card.color === currentRoom.currentColor) return true;
+                const t = currentRoom.topCard;
+                return !!(t && card.type === t.type);
             }
             const top = currentRoom.topCard;
             let base = false;
@@ -2738,8 +2745,8 @@
             }).join('') : '');
             // 顶牌(清色牌/普通牌)出牌动画进行中：仍渲染已落地的垫底扇形，但不渲染顶牌（顶牌由飞行副本表示，避免闪跳）
             if (animatingPlayCard && top.id === animatingPlayCard.id) {
-                el.innerHTML = fanHtml();
-                el.style.boxShadow = 'none';
+                // 出牌动画进行中：普通出牌保留弃牌堆上一张牌不动，等新牌落地覆盖后再换；清色则渲染已落地的垫底扇形
+                if (discardAllFan) { el.innerHTML = fanHtml(); el.style.boxShadow = 'none'; }
                 return;
             }
             if (discardAllFan) {

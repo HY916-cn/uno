@@ -486,9 +486,13 @@ function hasColorMatch(room, player) {
 function isPlayable(room, player, card) {
     // 挂起"持续摸牌直到指定色"期间不能出牌，必须先点牌堆摸完
     if (room.pendingDraw) return false;
-    // 毫不留情：叠加进行中，只能叠出等值或更高的加牌，其余一律不能打
+    // 毫不留情：叠加进行中，只能叠出等值或更高的加牌，且仍需匹配颜色/类型（万能黑牌可任意叠）
     if (room.drawStack > 0) {
-        return STACKABLE.has(card.type) && getDrawValue(card) >= room.stackValue;
+        if (!STACKABLE.has(card.type) || getDrawValue(card) < room.stackValue) return false;
+        if (card.color === 'black') return true;                    // 万能加牌任意叠
+        if (card.color === room.currentColor) return true;          // 同色可叠
+        const top = room.discardPile[room.discardPile.length - 1];
+        return !!(top && card.type === top.type);                   // 同类型可叠（如 +4 叠 +4）
     }
     const topCard = room.discardPile[room.discardPile.length - 1];
     if (!canPlayCard(card, topCard, room.currentColor)) return false;
@@ -872,7 +876,7 @@ function executeAITurn(room, bot) {
 
     // 毫不留情叠加进行中：能叠就叠（挑数值最小的合规牌），否则接下叠加的牌
     if (room.drawStack > 0) {
-        const qualifying = bot.hand.filter(c => STACKABLE.has(c.type) && getDrawValue(c) >= room.stackValue);
+        const qualifying = bot.hand.filter(c => isPlayable(room, bot, c));
         if (qualifying.length > 0) {
             qualifying.sort((a, b) => getDrawValue(a) - getDrawValue(b));
             const c = qualifying[0];
