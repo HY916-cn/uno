@@ -1190,7 +1190,7 @@
         let publicRoomsInterval = null;
         let lastPublicRoomsHtml = '';
 
-        function $(id) { return document.getElementById(id); }
+        function $(id) { const el = document.getElementById(id); if (!el) console.warn(`[DOM] 元素 #${id} 未找到`); return el; }
         function showModal(id) { 
             $(id).classList.add('active'); 
             if (id === 'join-room-modal') {
@@ -1233,7 +1233,7 @@
         let isMyTurn = false;
         let pendingWildCardId = null;
         let isFirstRound = true;
-        let serverTimeOffset = 0; 
+        let serverTimeOffset = 0; let serverTimeOffsetSamples = [];
         let lastUrgeTime = 0;
         let hasDrawnThisTurn = false; 
         let drawnCardsQueue = {}; 
@@ -1431,9 +1431,15 @@
         // Handlers
         function handleWSEvent(data) {
             switch(data.type) {
-                case 'pong':
-                    serverTimeOffset = data.serverTime - Date.now();
+                case 'pong': {
+                    const sample = data.serverTime - Date.now();
+                    serverTimeOffsetSamples.push(sample);
+                    if (serverTimeOffsetSamples.length > 5) serverTimeOffsetSamples.shift();
+                    // 多次采样取中位数，抵抗网络抖动
+                    const sorted = [...serverTimeOffsetSamples].sort((a, b) => a - b);
+                    serverTimeOffset = sorted[Math.floor(sorted.length / 2)];
                     break;
+                }
                 case 'public_rooms_list':
                     renderPublicRooms(data.rooms);
                     break;

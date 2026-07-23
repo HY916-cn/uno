@@ -509,6 +509,8 @@ function penalizeNext(room, amount) {
     const np = room.players[nextIdx];
     const pen = drawCards(room, amount);
     np.hand.push(...pen);
+    if (pen.length < amount) log(room.id, 'WARN', `罚抽不足：应抽${amount}张，实际只抽到${pen.length}张(牌堆耗尽)`);
+
     const willElim = room.version === 'nomercy' && np.hand.length >= 25; // 这次罚抽将导致其淘汰
     log(room.id, 'INFO', `玩家(${np.name})被罚抽${pen.length}张`);
     if (!np.isBot && np.ws && np.ws.readyState === 1) {
@@ -673,22 +675,22 @@ function triggerQTE(room, player) {
 
     broadcastEvent(room.id, 'qte_start', { qteWord: room.qteMode === 'type' ? room.qteWord : undefined, qteMode: room.qteMode, revealAt: room.qteRevealAt });
 
-    // Bots randomly try to catch —— 以人类平均反应(~250ms)为下限直接定义"反应时间"，
+    // Bots randomly try to catch —— 按钮保底350ms，输入保底1800ms；
     // 再换算成从触发起算的延迟(delay = 缓冲 + 反应)；按钮只需按下比输入打字快；抓捕者略慢给目标先手
     const isButton = room.qteMode === 'button';
     room.players.forEach(p => {
         if (p.isBot) {
             const isTarget = p.id === room.qteTargetPlayerId;
             const r = Math.random();
-            let reaction; // 目标反应时间(ms)，参照人类
+            let reaction; // 目标反应时间(ms)
             if (isButton) {
-                if (r < 0.45) reaction = 270 + Math.random() * 200;      // 快 270–470ms（下限 270ms）
-                else if (r < 0.82) reaction = 470 + Math.random() * 430; // 中 470–900ms
-                else reaction = 900 + Math.random() * 800;               // 慢 900–1700ms
+                if (r < 0.45) reaction = 350 + Math.random() * 250;      // 快 350–600ms
+                else if (r < 0.82) reaction = 600 + Math.random() * 500; // 中 600–1100ms
+                else reaction = 1100 + Math.random() * 900;              // 慢 1100–2000ms
             } else {
-                if (r < 0.4) reaction = 900 + Math.random() * 400;       // 快 900–1300ms（含打字，下限 900ms）
-                else if (r < 0.82) reaction = 1300 + Math.random() * 800;// 中 1300–2100ms
-                else reaction = 2100 + Math.random() * 1000;             // 慢 2100–3100ms
+                if (r < 0.4) reaction = 1800 + Math.random() * 700;      // 快 1800–2500ms
+                else if (r < 0.82) reaction = 2500 + Math.random() * 800;// 中 2500–3300ms
+                else reaction = 3300 + Math.random() * 1000;             // 慢 3300–4300ms
             }
             if (!isTarget) reaction += isButton ? 150 : 300;             // 抓捕者略慢
             const delay = QTE_REVEAL_BUFFER_MS + reaction;               // 换算成延迟
@@ -809,6 +811,8 @@ function resolveTakeStack(room, player) {
     room.stackValue = 0;
     const pen = drawCards(room, amount);
     player.hand.push(...pen);
+    if (pen.length < amount) log(room.id, 'WARN', `叠加接牌不足：应抽${amount}张，实际只抽到${pen.length}张(牌堆耗尽)`);
+
     const willElim = room.version === 'nomercy' && player.hand.length >= 25; // 这次接牌将导致其淘汰
     log(room.id, 'INFO', `玩家(${player.name})接下叠加的${pen.length}张`);
     if (!player.isBot && player.ws && player.ws.readyState === 1) {
@@ -1060,11 +1064,13 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false, sev
     log(room.id, 'INFO', `玩家(${player.name})打出了 ${colorMsg} 的 ${card.type}`);
     room.animating = true;
     broadcastEvent(room.id, 'play_card', { playerId: player.id, card, declaredColor: room.currentColor });
-    // 清色：与出牌同时告知客户端被清掉的同色牌，好让它们一起播放出牌动画
+    // 清色：先把手牌中同色牌过滤掉（确保 broadcastRoom 发送的是最终状态），同时告知客户端播放动画
+    let discardAllCards = null;
     if (card.type === 'discard-all') {
-        const alsoDiscarded = player.hand.filter(c => c.color === card.color);
-        if (alsoDiscarded.length) {
-            broadcastEvent(room.id, 'discard_all', { playerId: player.id, cards: alsoDiscarded, mainId: card.id });
+        discardAllCards = player.hand.filter(c => c.color === card.color);
+        if (discardAllCards.length) {
+            player.hand = player.hand.filter(c => c.color !== card.color);
+            broadcastEvent(room.id, 'discard_all', { playerId: player.id, cards: discardAllCards, mainId: card.id });
         }
     }
     broadcastRoom(room.id);
@@ -1072,16 +1078,11 @@ function playCardLogic(room, player, cardId, declaredColor, isCheat = false, sev
     setTimeout(() => {
         room.animating = false;
 
-        // 毫不留情 清色：把手里所有与该牌同色的牌一并弃掉（可能因此清空手牌）
-        if (card.type === 'discard-all') {
-            const removed = player.hand.filter(c => c.color === card.color);
-            player.hand = player.hand.filter(c => c.color !== card.color);
-            if (removed.length) {
-                // 被清的同色牌垫在清色牌下方，保持清色牌始终是弃牌堆顶牌（下家以它为底牌出牌）
-                if (room.discardPile[room.discardPile.length - 1] === card) room.discardPile.pop();
-                room.discardPile.push(...removed, card);
-                log(room.id, 'INFO', `清色弃掉${removed.length}张${card.color}，清色牌保持顶牌`);
-            }
+        // 毫不留情 清色：被清的同色牌垫在清色牌下方，保持清色牌始终是弃牌堆顶牌（下家以它为底牌出牌）
+        if (card.type === 'discard-all' && discardAllCards && discardAllCards.length) {
+            if (room.discardPile[room.discardPile.length - 1] === card) room.discardPile.pop();
+            room.discardPile.push(...discardAllCards, card);
+            log(room.id, 'INFO', `清色弃掉${discardAllCards.length}张${card.color}，清色牌保持顶牌`);
         }
 
         if (player.hand.length === 0) {
@@ -1127,6 +1128,9 @@ function handleDisconnect(ws) {
                 if (s.ws) sendError(s.ws, '房主已离开，房间自动解散');
             });
         }
+        if (room.freezeTimer) { clearTimeout(room.freezeTimer); room.freezeTimer = null; }
+        if (room.aiTimer) { clearTimeout(room.aiTimer); room.aiTimer = null; }
+
         rooms.delete(room.id);
         return;
     }
@@ -1210,6 +1214,7 @@ const pingInterval = setInterval(() => {
         ws.ping();
     });
 
+    const toDelete = [];
     for (const [roomId, room] of rooms.entries()) {
         const humanCount = room.players.filter(p => !p.isBot).length;
         if (humanCount === 0) {
@@ -1220,9 +1225,10 @@ const pingInterval = setInterval(() => {
                     if (s.ws) sendError(s.ws, '房间已解散');
                 });
             }
-            rooms.delete(roomId);
+            toDelete.push(roomId);
         }
     }
+    for (const roomId of toDelete) rooms.delete(roomId);
 }, 30000);
 
 wss.on('close', () => {
@@ -1367,7 +1373,7 @@ wss.on('connection', (ws, req) => {
                         // 机器人名字不与房内已有玩家/机器人重复
                         let botName = getRandomBotName();
                         let guard = 0;
-                        while (room.players.some(p => p.name === botName) && guard < 40) { botName = getRandomBotName(); guard++; }
+                        while (room.players.some(p => p.name === botName) && guard < 100) { botName = getRandomBotName(); guard++; }
                         room.players.push({
                             id: generateId(),
                             ws: null,
@@ -1515,7 +1521,7 @@ wss.on('connection', (ws, req) => {
                 if (room.players.length >= room.maxPlayers) { sendError(ws, '房间已满'); return; }
                 let botName = getRandomBotName();
                 let guard = 0;
-                while (room.players.some(p => p.name === botName) && guard < 30) { botName = getRandomBotName(); guard++; }
+                while (room.players.some(p => p.name === botName) && guard < 100) { botName = getRandomBotName(); guard++; }
                 room.players.push({
                     id: generateId(), ws: null, name: botName, isHost: false, isBot: true,
                     ready: true, hasSeenResults: true, hand: []
@@ -1612,7 +1618,7 @@ wss.on('connection', (ws, req) => {
                 }, 900);
             }
             else if (data.type === 'play_card') {
-                if (typeof data.cardId !== 'string' || typeof data.declaredColor !== 'string') return;
+                if (typeof data.cardId !== 'string' || data.cardId.length > 20 || typeof data.declaredColor !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame') return;
                 const player = room.players[room.turnIndex];
@@ -1628,7 +1634,7 @@ wss.on('connection', (ws, req) => {
                 playCardLogic(room, player, data.cardId, data.declaredColor, !!data.cheat);
             }
             else if (data.type === 'play_cheat_card') {
-                if (typeof data.cardId !== 'string' || typeof data.declaredColor !== 'string') return;
+                if (typeof data.cardId !== 'string' || data.cardId.length > 20 || typeof data.declaredColor !== 'string') return;
                 const room = rooms.get(clientData.roomId);
                 if (!room || room.state !== 'ingame' || room.frozen) return;
                 if (room.pendingDraw) return; // 持续摸牌/摸到指定色后不能作弊出牌
@@ -1872,6 +1878,7 @@ wss.on('connection', (ws, req) => {
             }
         } catch (err) {
             console.error('WS Error:', err);
+            try { ws.send(JSON.stringify({ type: 'error', message: '服务器处理消息时出错，请刷新重试' })); } catch (e) {}
         }
     });
 
@@ -1895,3 +1902,35 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`[SYS] 服务器已启动，监听端口: ${PORT}`);
 });
+
+// 优雅关闭：收到 SIGTERM/SIGINT 时通知所有客户端并清理资源
+function gracefulShutdown(signal) {
+    console.log(`[SYS] 收到 ${signal}，正在优雅关闭...`);
+    // 通知所有连接的客户端
+    const closed = new Set();
+    for (const [roomId, room] of rooms.entries()) {
+        room.players.forEach(p => {
+            if (p.ws && p.ws.readyState === 1 && !closed.has(p.ws)) {
+                closed.add(p.ws);
+                p.ws.send(JSON.stringify({ type: "error", message: "服务器正在关闭，请稍后重试" }));
+            }
+        });
+        if (room.spectators) {
+            room.spectators.forEach(s => {
+                if (s.ws && s.ws.readyState === 1 && !closed.has(s.ws)) {
+                    closed.add(s.ws);
+                    s.ws.send(JSON.stringify({ type: "error", message: "服务器正在关闭" }));
+                }
+            });
+        }
+        if (room.aiTimer) clearTimeout(room.aiTimer);
+        if (room.freezeTimer) clearTimeout(room.freezeTimer);
+    }
+    // 关闭 WebSocket 服务器和 HTTP 服务器
+    wss.close(() => { server.close(() => process.exit(0)); });
+    // 超时强制退出
+    setTimeout(() => process.exit(1), 10000);
+}
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
