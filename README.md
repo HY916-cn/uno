@@ -1,11 +1,5 @@
 <div align="center">
 
----
-
-**该版本尚未经过测试，请使用[经过测试的版本](https://github.com/HY916-cn/uno/tree/3767d35354db1b3abf5b24e4dd3db85f94dd511a)**
-
----
-
 # UNO Online
 
 **基于 Node.js + Express + WebSocket 的实时多人在线 UNO 网页游戏**
