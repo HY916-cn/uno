@@ -1492,6 +1492,7 @@
                         });
                     } else if (currentRoom.state === 'lobby') {
                         window.animatingOpponentCards = {};
+                        drawnCardsQueue = {}; // 回到大厅：清空摸牌动画队列，避免残留污染下一局
                     }
 
                     myHand = data.myHand || myHand;
@@ -1519,7 +1520,13 @@
                     break;
                 case 'draw_card':
                     // 被罚抽固定张数导致淘汰：被淘汰者本人不播抽牌动画（其他人照常）
-                    if (data.willEliminate && data.playerId === myId) break;
+                    if (data.willEliminate && data.playerId === myId) {
+                        // 前面 draw_card_result 已把这些牌推入队列，但这里跳过动画不会消费它们——
+                        // 必须原样清掉，否则会残留污染下一局发牌/摸牌动画（错显示/不显示）
+                        const q = drawnCardsQueue[myId];
+                        if (q && q.length) q.length = Math.max(0, q.length - data.count);
+                        break;
+                    }
                     setTimeout(() => animateDrawCard(data.playerId, data.count, data.simultaneous, data.isDeal), 100);
                     break;
                 case 'play_card':
