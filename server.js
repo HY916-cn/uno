@@ -1244,6 +1244,16 @@ wss.on('connection', (ws, req) => {
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
 
+    // 解帧失败（如超过 maxPayload）会 emit 'error'，不监听会导致整个进程退出
+    ws.on('error', (err) => {
+        if (err && err.code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH') {
+            log('SYS', 'WARN', `连接消息超限，已断开 (${req.socket.remoteAddress})`);
+        } else {
+            log('SYS', 'WARN', `WS 连接异常: ${err && err.message}`);
+        }
+        try { ws.terminate(); } catch (e) {}
+    });
+
     let messageCount = 0;
     const rateLimitInterval = setInterval(() => { messageCount = 0; }, 1000);
 

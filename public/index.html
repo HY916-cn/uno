@@ -984,7 +984,7 @@
         <div style="font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">房间聊天</div>
         <div class="chat-messages" id="chat-messages"></div>
         <div class="chat-input-area">
-            <input type="text" id="chat-input" placeholder="输入消息..." onkeypress="if(event.key==='Enter') sendChat()">
+            <input type="text" id="chat-input" maxlength="200" placeholder="输入消息..." onkeypress="if(event.key==='Enter') sendChat()">
             <button class="primary" onclick="sendChat()">发送</button>
         </div>
     </div>
@@ -2837,7 +2837,7 @@
         });
 
         function sendChat() {
-            const val = $('chat-input').value.trim();
+            const val = $('chat-input').value.trim().slice(0, 200);
             if(val) {
                 sendWS('chat', { message: val });
                 $('chat-input').value = '';
